@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DS Academy – Pathfinding Visualizer</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="stylesheet" href="css/animations.css" />
+</head>
+<body>
+
+<!-- Background network canvas -->
+<canvas id="bg-network" class="background-network"></canvas>
+
+<!-- ══════════════════════════════════════════
+     LOADING SCREEN
+══════════════════════════════════════════ -->
+<div id="loading-screen">
+  <div class="scanline"></div>
+  <div class="loading-badge">DS Academy // v2.1</div>
+  <h1 class="loading-title" data-text="Data Structures">
+    Data <span>Structures</span>
+  </h1>
+  <p class="loading-subtitle">Pathfinding Visualizer</p>
+  <div class="loading-bar-wrap">
+    <div class="loading-bar"></div>
+  </div>
+  <div class="loading-pct" id="loading-pct">0%</div>
+  <div class="loading-nodes">
+    <div class="loading-node"></div>
+    <div class="loading-node"></div>
+    <div class="loading-node"></div>
+    <div class="loading-node"></div>
+    <div class="loading-node"></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     MAIN APP
+══════════════════════════════════════════ -->
+<div id="app">
+
+  <!-- ── Header ── -->
+  <header class="app-header">
+    <div class="header-logo">
+      <span class="header-logo-text">DS <span>Academy</span></span>
+      <span class="header-badge">Pathfinding</span>
+    </div>
+    <nav class="header-nav">
+      <span>BFS vs DFS</span>
+      <span>·</span>
+      <span>Grid Visualizer</span>
+    </nav>
+  </header>
+
+  <!-- ── Main ── -->
+  <main class="main-content">
+
+    <!-- ══════════════════════════════════════════
+         STEP 01 – Grid Builder
+    ══════════════════════════════════════════ -->
+    <section class="builder-section fade-slide-up">
+
+      <div class="section-header">
+        <div class="section-eyebrow">Step 01</div>
+        <h2 class="section-title">Build Your <span>Environment</span></h2>
+      </div>
+
+      <!-- Legend -->
+      <div class="legend">
+        <span class="legend-label">Legend</span>
+        <div class="legend-item"><div class="legend-dot start"></div> Start</div>
+        <div class="legend-item"><div class="legend-dot end"></div> End</div>
+        <div class="legend-item"><div class="legend-dot wall"></div> Wall</div>
+        <div class="legend-item"><div class="legend-dot visited"></div> Visited</div>
+        <div class="legend-item"><div class="legend-dot path"></div> Path</div>
+        <div class="legend-item"><div class="legend-dot empty"></div> Empty</div>
+      </div>
+
+      <!-- Controls Row (speed slider removed from here) -->
+      <div class="controls-row">
+
+        <!-- Placement modes -->
+        <button class="btn active" id="btn-wall">
+          <span class="btn-icon">🧱</span> Place Walls
+        </button>
+        <button class="btn" id="btn-start">
+          <span class="btn-icon">🟠</span> Set Start
+        </button>
+        <button class="btn" id="btn-end">
+          <span class="btn-icon">🔴</span> Set End
+        </button>
+
+        <div class="controls-divider"></div>
+
+        <!-- Grid tools -->
+        <button class="btn btn-warn" id="btn-maze">
+          <span class="btn-icon">🌀</span> Generate Maze
+        </button>
+        <button class="btn btn-danger" id="btn-clear-walls">
+          <span class="btn-icon">🧹</span> Clear Walls
+        </button>
+
+        <div class="controls-divider"></div>
+
+        <!-- Grid size -->
+        <select class="btn" id="grid-size" data-tip="Change grid size">
+          <option value="10">10 × 10</option>
+          <option value="20" selected>20 × 20</option>
+          <option value="30">30 × 30</option>
+        </select>
+
+      </div><!-- /.controls-row -->
+
+      <!-- Grid -->
+      <div class="grid-wrap">
+        <div id="grid-container"></div>
+      </div>
+
+      <!-- Simulation Controls -->
+      <div class="sim-controls">
+        <div class="sim-controls-left">
+          <button class="btn btn-primary" id="btn-run" disabled>
+            ▶ Run Simulation
+          </button>
+          <button class="btn btn-danger" id="btn-reset">↺ Reset</button>
+        </div>
+
+        <div class="status-bar">
+          <div class="status-dot" id="status-dot"></div>
+          <span id="status-text">Place Start &amp; End nodes to begin</span>
+        </div>
+      </div>
+
+    </section><!-- /.builder-section -->
+
+    <hr class="section-divider" />
+
+    <!-- ══════════════════════════════════════════
+         STEP 02 – Algorithm Comparison
+    ══════════════════════════════════════════ -->
+    <section id="comparison-section">
+
+      <div class="section-header">
+        <div class="section-eyebrow">Step 02</div>
+        <h2 class="section-title">Algorithm <span>Comparison</span></h2>
+      </div>
+
+      <div class="comparison-grid">
+
+        <!-- ── BFS Card ── -->
+        <div class="algo-card bfs">
+          <div class="algo-header">
+            <div>
+              <div class="algo-title"><span>BFS</span> — Breadth First Search</div>
+              <p class="algo-desc">
+                Explores all neighbours at each depth before going deeper.
+                Guarantees the <strong>shortest path</strong> by expanding like a
+                wave outward from start. Uses a <strong>Queue (FIFO)</strong>.
+              </p>
+            </div>
+          </div>
+
+          <div class="algo-stats">
+            <div class="stat-chip">Visited <strong id="bfs-visited">—</strong></div>
+            <div class="stat-chip">Path <strong id="bfs-path">—</strong></div>
+            <div class="stat-chip">Structure: <strong>Queue</strong></div>
+          </div>
+
+          <div class="algo-progress">
+            <div class="algo-progress-fill" id="bfs-progress"></div>
+          </div>
+
+          <div class="algo-grid-wrap">
+            <div class="algo-grid" id="bfs-grid"></div>
+          </div>
+
+          <div class="log-container" id="bfs-log">
+            <span class="log-empty">Waiting for simulation…</span>
+          </div>
+
+          <!-- Insight panel (hidden until traversal completes) -->
+          <div class="insight-panel bfs-insight" id="bfs-insight" style="display:none">
+            <div class="insight-header" id="bfs-insight-header">
+              <span class="insight-icon" id="bfs-insight-icon">✔</span>
+              <span class="insight-title" id="bfs-insight-title">Shortest Path Found</span>
+            </div>
+            <div class="insight-stats" id="bfs-insight-stats"></div>
+            <p class="insight-explanation" id="bfs-insight-explanation"></p>
+          </div>
+        </div><!-- /.algo-card.bfs -->
+
+        <!-- ── Speed Control (centre column) ── -->
+        <div class="speed-center-panel" id="speed-center-panel">
+          <div class="speed-center-inner">
+            <div class="speed-center-label">SIMULATION<br>SPEED</div>
+            <div class="speed-vertical-wrap">
+              <span class="speed-end-label speed-fast">Fast</span>
+              <input type="range" class="speed-slider speed-slider-vertical" id="speed-slider"
+                     min="1" max="100" value="50" orient="vertical" />
+              <span class="speed-end-label speed-slow">Slow</span>
+            </div>
+            <span class="speed-val-badge" id="speed-val">Medium</span>
+
+            <div class="speed-divider"></div>
+
+            <button class="btn speed-pause-btn" id="btn-pause">⏸ Pause</button>
+          </div>
+        </div><!-- /.speed-center-panel -->
+
+        <!-- ── DFS Card ── -->
+        <div class="algo-card dfs">
+          <div class="algo-header">
+            <div>
+              <div class="algo-title"><span>DFS</span> — Depth First Search</div>
+              <p class="algo-desc">
+                Explores as far as possible along each branch before backtracking.
+                Does <strong>not</strong> guarantee shortest path, but uses less
+                memory. Uses a <strong>Stack (LIFO)</strong>.
+              </p>
+            </div>
+          </div>
+
+          <div class="algo-stats">
+            <div class="stat-chip">Visited <strong id="dfs-visited">—</strong></div>
+            <div class="stat-chip">Path <strong id="dfs-path">—</strong></div>
+            <div class="stat-chip">Structure: <strong>Stack</strong></div>
+          </div>
+
+          <div class="algo-progress">
+            <div class="algo-progress-fill" id="dfs-progress"></div>
+          </div>
+
+          <div class="algo-grid-wrap">
+            <div class="algo-grid" id="dfs-grid"></div>
+          </div>
+
+          <div class="log-container" id="dfs-log">
+            <span class="log-empty">Waiting for simulation…</span>
+          </div>
+
+          <!-- Insight panel (hidden until traversal completes) -->
+          <div class="insight-panel dfs-insight" id="dfs-insight" style="display:none">
+            <div class="insight-header" id="dfs-insight-header">
+              <span class="insight-icon" id="dfs-insight-icon">✔</span>
+              <span class="insight-title" id="dfs-insight-title">Path Found</span>
+            </div>
+            <div class="insight-stats" id="dfs-insight-stats"></div>
+            <p class="insight-explanation" id="dfs-insight-explanation"></p>
+          </div>
+        </div><!-- /.algo-card.dfs -->
+
+      </div><!-- /.comparison-grid -->
+
+    </section><!-- /#comparison-section -->
+
+  </main>
+
+</div><!-- /#app -->
+
+<!-- Entry point – all other modules are resolved from here -->
+<script type="module" src="js/app.js"></script>
+<script type="module" src="js/backgroundNetwork.js"></script>
+</body>
+</html>

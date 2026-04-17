@@ -1,0 +1,134 @@
+/* ── Loading Screen ── */
+@keyframes loadBarFill {
+  from { width: 0%; }
+  to   { width: 100%; }
+}
+
+@keyframes titlePulse {
+  0%, 100% { text-shadow: 0 0 20px var(--accent), 0 0 60px var(--accent-dim); }
+  50%       { text-shadow: 0 0 40px var(--accent), 0 0 100px var(--accent-dim), 0 0 160px var(--accent-dim); }
+}
+
+@keyframes statusPulse {
+  0%, 100% { box-shadow: 0 0 6px #f97316; opacity: 1; }
+  50%       { box-shadow: 0 0 16px #f97316; opacity: 0.7; }
+}
+
+/* scanline keyframe removed — caused distracting blue sweep line */
+
+/* shimmer keyframe removed — caused moving shine on title text */
+
+@keyframes fadeSlideUp {
+  from { opacity: 0; transform: translateY(30px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes toastIn {
+  from { opacity: 0; transform: translateY(16px) scale(0.95); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* ── Grid cells ── */
+@keyframes cellPop {
+  0%   { transform: scale(0.6); opacity: 0; }
+  70%  { transform: scale(1.08); }
+  100% { transform: scale(1);   opacity: 1; }
+}
+
+@keyframes visitedPulse {
+  0%   { transform: scale(0.3); background: var(--visited-start); border-radius: 50%; }
+  50%  { transform: scale(1.1); background: var(--visited-mid);   border-radius: 30%; }
+  100% { transform: scale(1);   background: var(--visited);       border-radius: var(--cell-radius); }
+}
+
+@keyframes pathReveal {
+  0%   { transform: scale(0.3) rotate(-20deg); background: var(--path-start); }
+  60%  { transform: scale(1.2) rotate(6deg);   background: var(--path-mid); }
+  100% { transform: scale(1)   rotate(0deg);   background: var(--path); }
+}
+
+@keyframes wallSet {
+  0%   { transform: scale(0.5) rotate(-8deg); opacity: 0.6; }
+  60%  { transform: scale(1.1) rotate(2deg); }
+  100% { transform: scale(1)   rotate(0); opacity: 1; }
+}
+
+@keyframes nodePlace {
+  0%   { transform: scale(0); opacity: 0; }
+  60%  { transform: scale(1.3); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes logEntry {
+  from { opacity: 0; transform: translateX(-12px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes btnGlow {
+  0%, 100% { box-shadow: 0 0 10px var(--accent-dim); }
+  50%       { box-shadow: 0 0 28px var(--accent), 0 0 50px var(--accent-dim); }
+}
+
+/* shimmer removed */
+
+@keyframes progressPulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.7; }
+}
+
+/* ── Goal Discovery Pulse ── */
+@keyframes goalPulse {
+  0%   { transform: scale(1);   box-shadow: 0 0 14px var(--cell-end); }
+  35%  { transform: scale(1.45); box-shadow: 0 0 30px var(--cell-end), 0 0 60px rgba(239,68,68,0.5); }
+  65%  { transform: scale(1.25); box-shadow: 0 0 20px var(--cell-end); }
+  100% { transform: scale(1);   box-shadow: 0 0 14px var(--cell-end); }
+}
+
+/* ── Ripple ring around goal ── */
+@keyframes goalRipple {
+  0%   { transform: scale(1);   opacity: 0.7; }
+  100% { transform: scale(2.8); opacity: 0;   }
+}
+
+/* Applied class for the ripple ring element */
+.goal-ripple {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: 2px solid var(--cell-end);
+  animation: goalRipple 0.65s ease-out forwards;
+  pointer-events: none;
+}
+
+/* ── Insight Panel Fade In ── */
+@keyframes insightFadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Speed Panel Fade In ── */
+@keyframes speedPanelFadeIn {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ══════════════════════════════════════════
+   Applied Utility Classes
+══════════════════════════════════════════ */
+.cell-pop       { animation: cellPop 0.22s cubic-bezier(.22,1,.36,1) forwards; }
+.cell-visited   { animation: visitedPulse 0.35s cubic-bezier(.22,1,.36,1) forwards; }
+.cell-path      { animation: pathReveal 0.42s cubic-bezier(.34,1.56,.64,1) forwards; }
+.cell-wall-anim { animation: wallSet 0.2s cubic-bezier(.22,1,.36,1) forwards; }
+.node-place     { animation: nodePlace 0.3s cubic-bezier(.34,1.56,.64,1) forwards; }
+.log-entry      { animation: logEntry 0.18s ease forwards; }
+.fade-slide-up  { animation: fadeSlideUp 0.5s ease forwards; }
+.fade-in        { animation: fadeIn 0.4s ease forwards; }
+.btn-glow       { animation: btnGlow 2.2s ease infinite; }
+.goal-pulse     { animation: goalPulse 0.55s cubic-bezier(.34,1.56,.64,1) forwards; }
+.insight-appear { animation: insightFadeIn 0.4s ease forwards; }
+.speed-panel-appear { animation: speedPanelFadeIn 0.4s ease forwards; }
