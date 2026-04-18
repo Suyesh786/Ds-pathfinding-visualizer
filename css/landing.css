@@ -1,0 +1,516 @@
+/* ══════════════════════════════════════════════════════════════
+   DS Academy – Landing Scene  (landing.css)
+   Pure CSS companion to js/landing.js
+   Matches the --bg / --accent / --accent-2 theme from style.css
+══════════════════════════════════════════════════════════════ */
+
+/* ── Landing Root ──────────────────────────────────────────── */
+#landing-scene {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+
+  /* Match the site's dark-blue body background exactly */
+  background: #090b10;
+  background-image:
+    radial-gradient(circle at 20% 20%, rgba(0,229,255,0.04) 0%, transparent 50%),
+    radial-gradient(circle at 80% 80%, rgba(124,58,237,0.04) 0%, transparent 50%);
+}
+
+/* Fade-out transition when Initialize is clicked */
+#landing-scene.landing-exit {
+  animation: landingExit 0.65s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+/* ── Pulse dot (VOID phase) ─────────────────────────────────── */
+#landing-pulse-dot {
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #6ee7b7;
+  animation: pulseDot 0.8s ease-in-out infinite;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+}
+#landing-pulse-dot.visible {
+  opacity: 1;
+}
+#landing-pulse-dot.hidden {
+  animation: pulseDotOut 0.3s ease forwards;
+}
+
+/* ── Grid Wrapper ───────────────────────────────────────────── */
+#landing-grid-wrapper {
+  position: relative;
+  width: 1200px;   /* increase width */
+  height: 560px;   /* increase height */
+  opacity: 0;
+  transform: perspective(900px) rotateX(14deg);
+  transition: opacity 1.1s cubic-bezier(0.16, 1, 0.3, 1),
+              transform 1.1s cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* ── Floating panel depth ──────────────────────────────────
+     Four-layer shadow treatment for a premium "lifted" feel:
+     1. Hairline edge ring  — defines the panel boundary crisply
+        without looking like a CSS border
+     2. Cyan ambient glow   — matches the scene's accent hue,
+        bleeds softly into the dark background
+     3. Deep lift shadow    — pushes the panel visually forward
+        (the same technique Linear / Vercel use on their cards)
+     4. Inset top shimmer   — simulates a light source above,
+        giving the top edge a subtle lit quality
+  ────────────────────────────────────────────────────────── */
+  border-radius: 3px;
+  box-shadow:
+    0 0 0 1px rgba(110, 231, 183, 0.15),           /* hairline edge ring — more visible */
+    0 0 80px 20px rgba(0, 229, 255, 0.14),           /* wider cyan ambient glow - STRENGTHENED */
+    0 16px 80px 0 rgba(0, 0, 0, 0.75),               /* deeper lift shadow - STRENGTHENED */
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);         /* brighter top-edge shimmer */
+}
+
+#landing-grid-wrapper.visible {
+  opacity: 1;
+  transform: perspective(900px) rotateX(0deg);
+}
+#landing-grid-wrapper.exit {
+  opacity: 0;
+  transform: scale(0.96);
+  transition: opacity 0.5s ease, transform 0.5s ease;
+}
+
+/* ── SVG Grid Lines ─────────────────────────────────────────── */
+#landing-gridlines {
+  display: block;
+  position: relative;
+}
+
+/* Lines animate via JS stroke-dashoffset technique — opacity lifted for visibility */
+#landing-gridlines line {
+  stroke: rgba(255,255,255,0.22); /* Further increased visibility */
+  stroke-width: 0.7; /* Slightly thicker */
+  stroke-dasharray: 1000;
+  stroke-dashoffset: 1000;
+  opacity: 0;
+  transition: stroke-dashoffset 0.85s cubic-bezier(0.16, 1, 0.3, 1),
+              opacity 0.3s ease;
+}
+
+/* ── Cell Layer ─────────────────────────────────────────────── */
+#landing-cell-layer {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  /* columns/rows set dynamically in JS */
+}
+
+.landing-cell {
+  width: 20px;
+  height: 20px;
+  position: relative;
+  background: rgba(0,0,0,0);
+  transition: background 0.12s ease;
+  overflow: hidden;
+}
+
+/* BFS visited state — opacity lifted 0.28→0.42 for "subtle but noticeable" */
+.landing-cell.lc-visited {
+  background: rgba(13, 148, 136, 0.42);
+}
+
+/* Ripple ring — border opacity lifted for cleaner diamond shape visibility */
+.landing-cell.lc-visited::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 1px solid rgba(13, 148, 136, 0.85);
+  border-radius: 1px;
+  animation: lcRipple 0.5s ease-out forwards;
+  pointer-events: none;
+}
+
+/* Logo / GRAPH letter cells — gold, override visited */
+.landing-cell.lc-logo {
+  background: rgba(0,0,0,0) !important; /* grid cell is transparent; logo overlay handles colour */
+}
+
+/* ── Logo Overlay ───────────────────────────────────────────── */
+#landing-logo-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.logo-cell {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  background: rgba(251, 191, 36, 0.80);
+  border-radius: 1px;
+  opacity: 0;
+  transform: scale(0.4);
+  /* entrance spring simulated with CSS */
+  transition:
+    opacity  0.12s ease-out,
+    transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+  will-change: transform, opacity;
+}
+
+.logo-cell.logo-visible {
+  opacity: 1;
+  transform: scale(1);
+  /* Once visible, run the infinite glow pulse */
+  animation: logoGlowPulse 2.4s ease-in-out 0.3s infinite;
+}
+
+/* ── Vignette ───────────────────────────────────────────────── */
+#landing-vignette {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  /* Vignette uses the site background colour so edges bleed naturally */
+  background: radial-gradient(ellipse at center, transparent 35%, #090b10 95%);
+}
+
+/* ── Memory Traces SVG ──────────────────────────────────────────
+   Full-screen SVG that sits behind the grid wrapper.
+   The SVG element itself is styled here; polyline and circle
+   styles are applied inline in JS for per-trace control.
+   pointer-events:none ensures it never intercepts mouse/touch.
+──────────────────────────────────────────────────────────────── */
+#landing-traces-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  /* Sits between scene background and grid wrapper in z-order.
+     z-index not needed — DOM insertion order handles layering:
+     scene inserts it before gridWrapper, so it paints behind it. */
+}
+
+/* ── Invitation Overlay ─────────────────────────────────────── */
+#landing-invitation {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.5s ease;
+}
+#landing-invitation.visible {
+  opacity: 1;
+}
+
+/* ── Invitation inner ────────────────────────────────────────
+   margin-top scaled up: grid is now 480px tall (24×20px rows).
+   GRAPH letters sit rows 9-13, so subtitle needs ~290px offset
+   from vertical centre to breathe below the letters.
+────────────────────────────────────────────────────────── */
+#landing-invitation-inner {
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 28px; /* Tighter gap for better vertical centering */
+  margin-top: 220px; /* Moved even higher from 260px */
+}
+
+/* ── Tagline ────────────────────────────────────────────────── */
+.landing-tagline-wrap {
+  overflow: hidden;
+  /* clip from right → reveal left-to-right */
+  clip-path: inset(0 100% 0 0);
+  animation: taglineReveal 0.7s 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.landing-tagline {
+  font-family: ui-monospace, 'JetBrains Mono', monospace;
+  font-size: 13px;
+  letter-spacing: 0.18em;
+  /* lifted from rgba(100,116,139,0.9) → cleaner slate, clearly readable */
+  color: rgba(148, 163, 184, 0.95);
+  text-transform: uppercase;
+  white-space: nowrap;
+  margin: 0;
+  user-select: none;
+}
+
+/* ── Divider line ───────────────────────────────────────────── */
+.landing-divider {
+  height: 1px;
+  background: linear-gradient(to right, transparent, rgba(110,231,183,0.4), transparent);
+  width: 100%;
+  transform: scaleX(0);
+  opacity: 0;
+  animation: dividerReveal 0.8s 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  transform-origin: center;
+}
+
+/* ── Initialize Button ──────────────────────────────────────── */
+/* ── Button wrap: explicit flex centering + nudge left/up ───── */
+.landing-btn-wrap {
+  opacity: 0;
+  transform: translateY(10px);
+  animation: btnReveal 0.5s 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  margin-left: 0; /* Removed nudge */
+  margin-top: 0; /* Removed nudge */
+}
+
+.landing-btn {
+  position: relative;
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ── Neon sweep — top & bottom edge light ───────────────────────
+   ::before = animated gradient line that sweeps left→right
+              along the TOP edge of the button
+   ::after  = same sweep along the BOTTOM edge
+   Both use the site's teal/cyan palette.
+   On hover the gradient brightens and the bloom intensifies.
+────────────────────────────────────────────────────────────── */
+.landing-btn::before,
+.landing-btn::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  width: 100%;
+  height: 2px; /* Slightly thicker for more presence */
+  /* sweeping highlight: transparent → vibrant cyan → emerald → transparent */
+  background: linear-gradient(
+    90deg,
+    transparent       0%,
+    rgba(0,229,255,0.00) 10%,
+    rgba(0,229,255,0.85) 45%,
+    rgba(110,231,183,0.75) 55%,
+    rgba(0,229,255,0.00) 90%,
+    transparent       100%
+  );
+  background-size: 200% 100%;
+  background-position: 200% 0;
+  opacity: 0.65; /* Much more visible idle opacity */
+  transition:
+    opacity    0.35s ease,
+    box-shadow 0.35s ease;
+  /* faster, more energetic sweep */
+  animation: neonSweepIdle 2.2s 1.2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  pointer-events: none;
+  border-radius: 1px;
+}
+
+/* TOP edge */
+.landing-btn::before {
+  top: 0;
+  /* bloom upward from top edge */
+  box-shadow: 0 -2px 8px 1px rgba(0,229,255,0.0);
+}
+
+/* BOTTOM edge */
+.landing-btn::after {
+  bottom: 0;
+  /* bloom downward from bottom edge */
+  box-shadow: 0 2px 8px 1px rgba(0,229,255,0.0);
+}
+
+/* Idle state — vibrant, energetic sweep to invite interaction */
+@keyframes neonSweepIdle {
+  0%   { background-position: 200% 0; opacity: 0.4; }
+  25%  { opacity: 0.9; }
+  50%  { background-position: 50% 0;  opacity: 0.6; }
+  75%  { opacity: 0.9; }
+  100% { background-position: -100% 0; opacity: 0.4; }
+}
+
+/* Hover — make both lines fully visible + bright bloom */
+.landing-btn:hover::before,
+.landing-btn:hover::after {
+  opacity: 1;
+  animation: neonSweepHover 1.8s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.landing-btn:hover::before {
+  box-shadow:
+    0 -3px 10px 2px rgba(0,229,255,0.35),
+    0 -1px  4px 0px rgba(110,231,183,0.25);
+}
+
+.landing-btn:hover::after {
+  box-shadow:
+    0  3px 10px 2px rgba(0,229,255,0.35),
+    0  1px  4px 0px rgba(110,231,183,0.25);
+}
+
+@keyframes neonSweepHover {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -30% 0; }
+}
+
+.landing-btn-inner {
+  padding: 14px 44px; /* Increased padding */
+  font-family: ui-monospace, 'JetBrains Mono', monospace;
+  font-size: 14px; /* Increased font size */
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: rgba(241, 245, 249, 0.85);
+  position: relative;
+  z-index: 1;
+  user-select: none;
+  transition: color 0.25s ease, text-shadow 0.25s ease;
+  /* Added background blur and slight darkening to stand out */
+  background: rgba(9, 11, 16, 0.45);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-radius: 2px;
+}
+
+.landing-btn-border {
+  position: absolute;
+  inset: 0;
+  /* static hairline — the neon pseudo-elements sit on top */
+  border: 1px solid rgba(110, 231, 183, 0.25);
+  border-radius: 2px;
+  transition:
+    border-color 0.3s ease,
+    box-shadow   0.3s ease;
+  z-index: 0;
+  /* Added a subtle breathing glow to the border itself */
+  animation: borderBreathe 3s ease-in-out infinite;
+}
+
+@keyframes borderBreathe {
+  0%, 100% { border-color: rgba(110, 231, 183, 0.35); box-shadow: 0 0 8px rgba(0, 229, 255, 0.10); }
+  50%      { border-color: rgba(0, 229, 255, 0.65);  box-shadow: 0 0 18px rgba(0, 229, 255, 0.25); }
+}
+
+/* Corner accents (hidden until hover) */
+.landing-btn-corner {
+  position: absolute;
+  width: 5px;
+  height: 5px;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  z-index: 2;
+}
+.landing-btn-corner::before,
+.landing-btn-corner::after {
+  content: '';
+  position: absolute;
+  background: rgba(110, 231, 183, 0.9);
+}
+
+/* Top-left */
+.landing-btn-corner.tl { top: 0; left: 0; }
+.landing-btn-corner.tl::before { top: 0; left: 0; width: 5px; height: 1.5px; }
+.landing-btn-corner.tl::after  { top: 0; left: 0; width: 1.5px; height: 5px; }
+
+/* Top-right */
+.landing-btn-corner.tr { top: 0; right: 0; }
+.landing-btn-corner.tr::before { top: 0; right: 0; width: 5px; height: 1.5px; }
+.landing-btn-corner.tr::after  { top: 0; right: 0; width: 1.5px; height: 5px; }
+
+/* Bottom-left */
+.landing-btn-corner.bl { bottom: 0; left: 0; }
+.landing-btn-corner.bl::before { bottom: 0; left: 0; width: 5px; height: 1.5px; }
+.landing-btn-corner.bl::after  { bottom: 0; left: 0; width: 1.5px; height: 5px; }
+
+/* Bottom-right */
+.landing-btn-corner.br { bottom: 0; right: 0; }
+.landing-btn-corner.br::before { bottom: 0; right: 0; width: 5px; height: 1.5px; }
+.landing-btn-corner.br::after  { bottom: 0; right: 0; width: 1.5px; height: 5px; }
+
+/* Hover state */
+.landing-btn:hover .landing-btn-inner {
+  color: rgba(110, 231, 183, 1);
+  text-shadow: 0 0 12px rgba(110,231,183,0.35);
+}
+.landing-btn:hover .landing-btn-border {
+  border-color: rgba(0, 229, 255, 0.30);
+  box-shadow:
+    0 0 16px 2px rgba(0,229,255,0.08),
+    inset 0 0 10px rgba(0,229,255,0.04);
+}
+.landing-btn:hover .landing-btn-corner  { opacity: 1; }
+
+/* Active/press state */
+.landing-btn:active { transform: scale(0.97); }
+.landing-btn:active .landing-btn-inner {
+  color: rgba(110, 231, 183, 1);
+  text-shadow: 0 0 8px rgba(110,231,183,0.3);
+}
+
+/* ══════════════════════════════════════════════════════════════
+   KEYFRAMES
+══════════════════════════════════════════ */
+
+@keyframes pulseDot {
+  0%, 100% { opacity: 0.2; transform: scale(1); }
+  50%       { opacity: 0.9; transform: scale(1.4); }
+}
+
+@keyframes pulseDotOut {
+  to { opacity: 0; transform: scale(0); }
+}
+
+@keyframes lcRipple {
+  0%   { transform: scale(0.2); opacity: 1; }
+  100% { transform: scale(1.6); opacity: 0; }
+}
+
+@keyframes logoGlowPulse {
+  0%, 100% { box-shadow: 0 0 4px 1px rgba(251,191,36,0.30); }
+  50%       { box-shadow: 0 0 8px 2px rgba(251,191,36,0.55); }
+}
+
+@keyframes taglineReveal {
+  to { clip-path: inset(0 0% 0 0); }
+}
+
+@keyframes dividerReveal {
+  to { transform: scaleX(1); opacity: 1; }
+}
+
+@keyframes btnReveal {
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes landingExit {
+  0%   { opacity: 1; transform: scale(1) translateY(0); }
+  100% { opacity: 0; transform: scale(1.03) translateY(-12px); }
+}
+
+/* ── Responsive adjustments ─────────────────────────────────── */
+@media (max-width: 960px) {
+  #landing-grid-wrapper {
+    transform-origin: center center;
+    zoom: 0.72;
+  }
+  #landing-grid-wrapper.visible {
+    transform: perspective(900px) rotateX(0deg);
+  }
+  #landing-invitation-inner {
+    margin-top: 210px; /* 290px × 0.72 zoom */
+  }
+}
+
+@media (max-width: 600px) {
+  #landing-grid-wrapper { zoom: 0.50; }
+  #landing-invitation-inner { margin-top: 158px; } /* 290px × 0.50 zoom, rounded */
+  .landing-tagline { font-size: 10px; letter-spacing: 0.12em; }
+}

@@ -12,8 +12,8 @@ let mode = 'bfs'; // 'bfs' | 'network'
 //  BFS RIPPLE (loading screen background)
 // ══════════════════════════════════════════
 const CELL_SIZE   = 28;   // match the body dot-grid size
-const BFS_SPEED   = 48;   // ms per ring expansion
-const FADE_RINGS  = 18;   // how many rings stay visible
+const BFS_SPEED   = 40;   // ms per ring expansion (slightly faster)
+const FADE_RINGS  = 22;   // how many rings stay visible (more rings for more presence)
 const RESTART_MS  = 2200; // ms before next ripple starts
 
 let gridCols = 0, gridRows = 0;
@@ -103,14 +103,14 @@ function drawBFS() {
 
   const now = performance.now();
 
-  // ── Draw dot grid (always visible, very faint) ──────
-  ctx.fillStyle = 'rgba(30, 36, 51, 0.9)';
+  // ── Draw dot grid (always visible, clearly noticeable) ──────
+  ctx.fillStyle = 'rgba(110, 231, 183, 0.45)'; // Brighter green/teal dots
   for (let col = 0; col < gridCols; col++) {
     for (let row = 0; row < gridRows; row++) {
       const x = col * CELL_SIZE + CELL_SIZE / 2;
       const y = row * CELL_SIZE + CELL_SIZE / 2;
       ctx.beginPath();
-      ctx.arc(x, y, 1, 0, Math.PI * 2);
+      ctx.arc(x, y, 1.4, 0, Math.PI * 2); // Slightly larger dots
       ctx.fill();
     }
   }
@@ -139,8 +139,8 @@ function drawBFS() {
     const g = Math.round(baseG + ( 58 - baseG) * purple * 0.3);
     const b = Math.round(baseB + (237 - baseB) * purple * 0.2);
 
-    const cellAlpha = alpha * 0.55;
-    const glowAlpha = alpha * 0.12;
+    const cellAlpha = alpha * 0.75; // Increased cell opacity
+    const glowAlpha = alpha * 0.20; // Increased glow opacity
 
     for (const { col, row } of cells) {
       const x = col * CELL_SIZE;
@@ -191,8 +191,8 @@ const MAX_CONNECTIONS = 3;
 const DISTANCE_THRESH = 150;
 const NODE_RADIUS     = 1.8;
 const LINE_WIDTH      = 0.5;
-const BASE_OPACITY    = 0.055;
-const SPEED           = 0.22;
+const BASE_OPACITY    = 0.22; // Further increased network visibility
+const SPEED           = 0.28; // Slightly faster movement
 
 let nodes = [];
 
@@ -246,7 +246,7 @@ function drawNetwork() {
       if (d < DISTANCE_THRESH) {
         const alpha = BASE_OPACITY * (1 - d / DISTANCE_THRESH);
         ctx.beginPath();
-        ctx.strokeStyle = `rgba(0,229,255,${alpha})`;
+        ctx.strokeStyle = `rgba(110,231,183,${alpha * 1.5})`; // More visible green lines
         ctx.lineWidth   = LINE_WIDTH;
         ctx.moveTo(nodes[i].x, nodes[i].y);
         ctx.lineTo(nodes[j].x, nodes[j].y);

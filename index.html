@@ -4,8 +4,13 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>DS Academy – Pathfinding Visualizer</title>
+
+  <!-- ── Core styles ── -->
   <link rel="stylesheet" href="css/style.css" />
   <link rel="stylesheet" href="css/animations.css" />
+
+  <!-- ── Landing scene styles (NEW) ── -->
+  <link rel="stylesheet" href="css/landing.css" />
 </head>
 <body>
 
@@ -13,30 +18,7 @@
 <canvas id="bg-canvas" class="bg-canvas"></canvas>
 
 <!-- ══════════════════════════════════════════
-     LOADING SCREEN
-══════════════════════════════════════════ -->
-<div id="loading-screen">
-  <div class="scanline"></div>
-  <div class="loading-badge">DS Academy // v2.1</div>
-  <h1 class="loading-title" data-text="Data Structures">
-    Data <span>Structures</span>
-  </h1>
-  <p class="loading-subtitle">Pathfinding Visualizer</p>
-  <div class="loading-bar-wrap">
-    <div class="loading-bar"></div>
-  </div>
-  <div class="loading-pct" id="loading-pct">0%</div>
-  <div class="loading-nodes">
-    <div class="loading-node"></div>
-    <div class="loading-node"></div>
-    <div class="loading-node"></div>
-    <div class="loading-node"></div>
-    <div class="loading-node"></div>
-  </div>
-</div>
-
-<!-- ══════════════════════════════════════════
-     MAIN APP
+     MAIN APP  (hidden until landing completes)
 ══════════════════════════════════════════ -->
 <div id="app">
 
@@ -77,7 +59,7 @@
         <div class="legend-item"><div class="legend-dot empty"></div> Empty</div>
       </div>
 
-      <!-- Controls Row (speed slider removed from here) -->
+      <!-- Controls Row -->
       <div class="controls-row">
 
         <!-- Placement modes -->
@@ -179,7 +161,6 @@
             <span class="log-empty">Waiting for simulation…</span>
           </div>
 
-          <!-- Insight panel (hidden until traversal completes) -->
           <div class="insight-panel bfs-insight" id="bfs-insight" style="display:none">
             <div class="insight-header" id="bfs-insight-header">
               <span class="insight-icon" id="bfs-insight-icon">✔</span>
@@ -239,7 +220,6 @@
             <span class="log-empty">Waiting for simulation…</span>
           </div>
 
-          <!-- Insight panel (hidden until traversal completes) -->
           <div class="insight-panel dfs-insight" id="dfs-insight" style="display:none">
             <div class="insight-header" id="dfs-insight-header">
               <span class="insight-icon" id="dfs-insight-icon">✔</span>
@@ -258,7 +238,12 @@
 
 </div><!-- /#app -->
 
-<!-- Entry point – all other modules are resolved from here -->
+<!-- ── Scripts ─────────────────────────────────────────────────
+     landing.js runs first (module, so deferred by default).
+     app.js and backgroundNetwork.js also run as modules.
+     app.js exports initApp() and waits for the landing callback.
+──────────────────────────────────────────────────────────────── -->
+<script type="module" src="js/landing.js"></script>
 <script type="module" src="js/app.js"></script>
 <script type="module" src="js/backgroundNetwork.js"></script>
 </body>
