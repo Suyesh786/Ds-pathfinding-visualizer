@@ -13,7 +13,9 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  overflow: hidden;
+  /* overflow:hidden was clipping the CSS-scaled grid wrapper on mobile.
+     clip prevents scrollbars while still allowing transform overflow. */
+  overflow: clip;
 
   /* Match the site's dark-blue body background exactly */
   background: #090b10;
@@ -212,17 +214,18 @@
 }
 
 /* ── Invitation inner ────────────────────────────────────────
-   margin-top scaled up: grid is now 480px tall (24×20px rows).
-   GRAPH letters sit rows 9-13, so subtitle needs ~290px offset
-   from vertical centre to breathe below the letters.
+   On desktop the margin-top pushes the text below the GRAPH
+   letters (which sit in the vertical centre of the grid).
+   On mobile the grid is CSS-scaled down, so the invitation
+   sits outside the wrapper and uses justify-content instead.
 ────────────────────────────────────────────────────────── */
 #landing-invitation-inner {
   pointer-events: auto;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 28px; /* Tighter gap for better vertical centering */
-  margin-top: 220px; /* Moved even higher from 260px */
+  gap: 28px;
+  margin-top: 220px; /* desktop only — overridden in media queries */
 }
 
 /* ── Tagline ────────────────────────────────────────────────── */
@@ -496,21 +499,103 @@
 }
 
 /* ── Responsive adjustments ─────────────────────────────────── */
-@media (max-width: 960px) {
+/*
+  Strategy: the grid's internal pixel coordinates (COLS×CELL_SIZE,
+  ROWS×CELL_SIZE) are fixed in JS so the BFS and logo animations
+  stay pixel-perfect. We scale the whole wrapper down with CSS
+  transform: scale() so it fits any viewport without touching JS.
+
+  The invitation overlay (#landing-invitation) sits OUTSIDE the
+  wrapper, so it is never scaled — it always renders at full size,
+  centred naturally in the scene.
+*/
+
+/* ── Tablet (961px – 1280px) ── */
+@media (max-width: 1280px) {
   #landing-grid-wrapper {
     transform-origin: center center;
-    zoom: 0.72;
+    /* 1200px natural width → fits inside ~1100px viewports */
+    transform: perspective(900px) rotateX(14deg) scale(0.88);
   }
   #landing-grid-wrapper.visible {
-    transform: perspective(900px) rotateX(0deg);
+    transform: perspective(900px) rotateX(0deg) scale(0.88);
   }
-  #landing-invitation-inner {
-    margin-top: 210px; /* 290px × 0.72 zoom */
+  #landing-grid-wrapper.exit {
+    transform: scale(0.88) scale(0.96);
   }
 }
 
+/* ── Small tablet / large phone (601px – 960px) ── */
+@media (max-width: 960px) {
+  #landing-grid-wrapper {
+    transform-origin: center center;
+    transform: perspective(900px) rotateX(14deg) scale(0.62);
+  }
+  #landing-grid-wrapper.visible {
+    transform: perspective(900px) rotateX(0deg) scale(0.62);
+  }
+  #landing-grid-wrapper.exit {
+    transform: scale(0.62) scale(0.96);
+  }
+
+  /* Invitation sits outside the scaled wrapper — just tighten gap */
+  #landing-invitation-inner {
+    gap: 20px;
+    margin-top: 0;
+  }
+
+  /* Move the whole invitation overlay down so it clears the scaled grid */
+  #landing-invitation {
+    justify-content: flex-end;
+    padding-bottom: 10vh;
+  }
+
+  .landing-tagline {
+    font-size: clamp(10px, 2.2vw, 13px);
+    letter-spacing: 0.13em;
+    white-space: normal;
+    text-align: center;
+  }
+
+  .landing-btn-inner {
+    padding: clamp(10px, 2vw, 14px) clamp(24px, 5vw, 44px);
+    font-size: clamp(12px, 3vw, 14px);
+  }
+}
+
+/* ── Phone (≤600px) ── */
 @media (max-width: 600px) {
-  #landing-grid-wrapper { zoom: 0.50; }
-  #landing-invitation-inner { margin-top: 158px; } /* 290px × 0.50 zoom, rounded */
-  .landing-tagline { font-size: 10px; letter-spacing: 0.12em; }
+  #landing-grid-wrapper {
+    transform-origin: center center;
+    transform: perspective(900px) rotateX(14deg) scale(0.40);
+  }
+  #landing-grid-wrapper.visible {
+    transform: perspective(900px) rotateX(0deg) scale(0.40);
+  }
+  #landing-grid-wrapper.exit {
+    transform: scale(0.40) scale(0.96);
+  }
+
+  #landing-invitation {
+    justify-content: flex-end;
+    padding-bottom: 8vh;
+  }
+
+  #landing-invitation-inner {
+    gap: 16px;
+    margin-top: 0;
+  }
+
+  .landing-tagline {
+    font-size: clamp(9px, 2.8vw, 11px);
+    letter-spacing: 0.10em;
+    white-space: normal;
+    text-align: center;
+    max-width: 80vw;
+  }
+
+  .landing-btn-inner {
+    padding: clamp(8px, 2vw, 12px) clamp(18px, 5vw, 32px);
+    font-size: clamp(11px, 3vw, 13px);
+  }
 }

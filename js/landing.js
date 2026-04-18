@@ -130,10 +130,17 @@ function buildGridWrapper() {
   const wrapper = document.createElement('div');
   wrapper.id = 'landing-grid-wrapper';
 
-  const W = COLS * CELL_SIZE;
-  const H = ROWS * CELL_SIZE;
+  // Set the natural pixel dimensions — CSS transform: scale() in
+  // landing.css scales this down on smaller viewports without
+  // disturbing the internal BFS / logo pixel coordinates.
+  const W = COLS * CELL_SIZE;  // 880px
+  const H = ROWS * CELL_SIZE;  // 480px
   wrapper.style.width  = `${W}px`;
   wrapper.style.height = `${H}px`;
+
+  // Allow the scale transform to overflow the wrapper's own box
+  // so it doesn't get clipped by the parent scene's overflow:hidden.
+  wrapper.style.flexShrink = '0';
 
   return wrapper;
 }
