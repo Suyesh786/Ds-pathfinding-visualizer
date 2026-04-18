@@ -12,9 +12,15 @@ export class Controls {
     this._bindModeButtons();
     this._bindGridControls();
     this._bindSimControls();
+
+    // Both buttons start disabled on page load.
+    // app.js's patchGridCallbacks() is the single place that triggers
+    // updates — _watchNodePlacement() has been removed to avoid conflicts.
     this._updateRunBtn();
+    this._updateMazeBtn();
   }
 
+  // ── Mode buttons ─────────────────────────────────────────────
   _bindModeButtons() {
     const modes = {
       'btn-wall' : 'wall',
@@ -44,29 +50,24 @@ export class Controls {
     });
   }
 
+  // ── Grid controls ────────────────────────────────────────────
   _bindGridControls() {
-    // Clear walls
     document.getElementById('btn-clear-walls')?.addEventListener('click', () => {
       this.grid.clearWalls();
       showToast('Walls cleared', '🧹');
       this._updateRunBtn();
     });
 
-    // Generate maze
     document.getElementById('btn-maze')?.addEventListener('click', () => {
-      const walls = generateMaze(
-        this.grid.size,
-        this.grid.size,
-        this.grid.startNode,
-        this.grid.endNode
-      );
-      this.grid.applyWalls(walls);
+      if (!this.grid.isReady()) return;
+      generateMaze(this.grid);
       showToast('Maze generated!', '🌀');
+      this._updateRunBtn();
     });
   }
 
+  // ── Simulation controls ──────────────────────────────────────
   _bindSimControls() {
-    // Run
     document.getElementById('btn-run')?.addEventListener('click', () => {
       if (!this.grid.isReady()) {
         showToast('Please set both Start and End nodes first', '⚠️');
@@ -75,7 +76,6 @@ export class Controls {
       this.simRunner.run();
     });
 
-    // Pause / Resume — button is now inside the speed centre panel
     const pauseBtn = document.getElementById('btn-pause');
     pauseBtn?.addEventListener('click', () => {
       if (this.simRunner.isPaused()) {
@@ -89,7 +89,6 @@ export class Controls {
       }
     });
 
-    // Reset
     document.getElementById('btn-reset')?.addEventListener('click', () => {
       this.simRunner.reset();
       if (pauseBtn) pauseBtn.textContent = '⏸ Pause';
@@ -97,7 +96,6 @@ export class Controls {
       this._updateRunBtn();
     });
 
-    // Speed label — now bound to the vertical slider in comparison section
     const slider   = document.getElementById('speed-slider');
     const speedVal = document.getElementById('speed-val');
     slider?.addEventListener('input', () => {
@@ -107,13 +105,38 @@ export class Controls {
     });
   }
 
-  updateRunBtn() { this._updateRunBtn(); }
+  // ── Button state helpers ─────────────────────────────────────
+
+  // Public — called by app.js's patchGridCallbacks after node placement
+  updateMazeBtn() { this._updateMazeBtn(); }
+  updateRunBtn()  { this._updateRunBtn();  }
+
+  _updateMazeBtn() {
+    const btn = document.getElementById('btn-maze');
+    if (!btn) return;
+    const ready = this.grid.isReady();
+    btn.disabled = !ready;
+    if (ready) this._pulseOnce(btn);
+  }
 
   _updateRunBtn() {
     const btn = document.getElementById('btn-run');
     if (!btn) return;
     const ready = this.grid.isReady();
     btn.disabled = !ready;
-    btn.classList.toggle('btn-glow', ready);
+    if (ready) this._pulseOnce(btn);
+  }
+
+  // Pulses the button once when it unlocks, then removes the class
+  // so it returns to a normal resting appearance permanently.
+  _pulseOnce(btn) {
+    btn.classList.remove('btn-glow');
+    void btn.offsetWidth;                    // force reflow to restart animation
+    btn.classList.add('btn-glow');
+
+    // setTimeout is the reliable fallback — matches animation duration (850ms)
+    const cleanup = () => btn.classList.remove('btn-glow');
+    btn.addEventListener('animationend', cleanup, { once: true });
+    setTimeout(cleanup, 900);               // safety net if animationend misfires
   }
 }

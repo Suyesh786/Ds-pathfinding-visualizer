@@ -411,6 +411,32 @@ body {
   transform: translateY(0);
 }
 
+/* ── btn-glow: single pulse when button unlocks, then fully normalises ── */
+@keyframes btnGlowPulse {
+  0%   { box-shadow: none;                          border-color: var(--border-bright); color: var(--text-dim); }
+  40%  { box-shadow: 0 0 18px rgba(0,229,255,0.5); border-color: var(--accent);        color: var(--accent);   }
+  100% { box-shadow: none;                          border-color: var(--border-bright); color: var(--text-dim); }
+}
+
+/* No "forwards" fill — animation returns to base on its own so
+   animationend fires cleanly and JS removes the class. */
+.btn-glow {
+  animation: btnGlowPulse 0.85s ease-in-out;
+}
+
+/* Disabled state — must come after :hover so it wins the cascade */
+.btn:disabled,
+.btn[disabled] {
+  opacity: 0.38;
+  cursor: not-allowed;
+  pointer-events: none;   /* kills hover glow + transform entirely */
+  box-shadow: none;
+  transform: none;
+  border-color: var(--border);
+  color: var(--text-muted);
+  background: var(--bg-2);
+}
+
 .btn.active {
   border-color: var(--accent);
   color: var(--accent);

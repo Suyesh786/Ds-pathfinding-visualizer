@@ -1,14 +1,5 @@
 // ── app.js ─────────────────────────────────────────────
 // Main application entry point and simulation runner.
-//
-// CHANGE from original:
-//   The old "loading screen" logic (fake progress bar, 2.7 s timer)
-//   has been replaced by the new landing.js scene.
-//   app.js now waits for the landing to call onDone() before
-//   revealing #app and initialising the grid.
-//
-// Everything else (Grid, Controls, BFS/DFS, animate, logs) is
-// UNCHANGED.
 
 import { Grid }            from './grid.js';
 import { Controls }        from './controls.js';
@@ -23,17 +14,13 @@ import { initLanding }     from './landing.js';
 window.addEventListener('DOMContentLoaded', () => {
   const app = document.getElementById('app');
 
-  // Keep the main app invisible while landing plays
   app.style.display = 'none';
   app.style.opacity = '0';
 
-  // Launch landing scene; onDone() is called when Initialize fires
   initLanding(() => {
-    // Fade app in after landing exits
-    app.style.display  = 'block';
+    app.style.display    = 'block';
     app.style.transition = 'opacity 0.5s ease';
 
-    // Small tick to allow display:block to paint before opacity
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         app.style.opacity = '1';
@@ -49,17 +36,23 @@ function initApp() {
   const simState = createSimState(grid);
   const controls = new Controls(grid, simState);
 
-  // Patch place methods so the Run button stays in sync.
+  // Patch place methods so BOTH Run and Maze buttons stay in sync.
+  // This is the single source of truth for node-placement callbacks —
+  // Controls._watchNodePlacement() has been removed to avoid conflicts.
   function patchGridCallbacks() {
     const origPlaceStart = Grid.prototype._placeStart.bind(grid);
     const origPlaceEnd   = Grid.prototype._placeEnd.bind(grid);
+
     grid._placeStart = function (r, c, s) {
       origPlaceStart(r, c, s);
       controls.updateRunBtn();
+      controls.updateMazeBtn();   // ← added
     };
+
     grid._placeEnd = function (r, c, s) {
       origPlaceEnd(r, c, s);
       controls.updateRunBtn();
+      controls.updateMazeBtn();   // ← added
     };
   }
 
@@ -76,6 +69,7 @@ function initApp() {
     const size = parseInt(sizeSelect.value);
     grid.resize(size);
     controls.updateRunBtn();
+    controls.updateMazeBtn();     // ← added
     simState.reset();
   });
 
@@ -86,7 +80,7 @@ function initApp() {
 function setStatus(text, state) {
   const dot  = document.getElementById('status-dot');
   const span = document.getElementById('status-text');
-  if (dot)  dot.className   = `status-dot ${state}`;
+  if (dot)  dot.className    = `status-dot ${state}`;
   if (span) span.textContent = text;
 }
 
