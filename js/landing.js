@@ -663,8 +663,11 @@ export function initLanding(onDone) {
         invitation.classList.add('visible');
         break;
 
-      // ── ASSEMBLED → user clicked Initialize ──────────────
+      // ── ASSEMBLED → mode selected, entering app ──────────
       case PHASE.ASSEMBLED:
+        // Dismiss mode selector if still visible
+        dismissModeSelector();
+
         invitation.classList.remove('visible');
         gridWrapper.classList.add('exit');
         scene.classList.add('landing-exit');
@@ -678,10 +681,100 @@ export function initLanding(onDone) {
     }
   }
 
+  // ── Mode Selector ────────────────────────────────────────────
+  let _modeSelectorEl = null;
+
+  function showModeSelector() {
+    if (_modeSelectorEl) return;
+
+    const backdrop = document.createElement('div');
+    backdrop.id = 'mode-selector-backdrop';
+
+    const card = document.createElement('div');
+    card.id = 'mode-selector-card';
+
+    const eyebrow = document.createElement('p');
+    eyebrow.className = 'ms-eyebrow';
+    eyebrow.textContent = '// select mode';
+
+    const title = document.createElement('h2');
+    title.className = 'ms-title';
+    title.textContent = 'How would you like to explore?';
+
+    const subtitle = document.createElement('p');
+    subtitle.className = 'ms-subtitle';
+    subtitle.textContent = "Choose how you'd like to start using the simulator.";
+
+    const divider = document.createElement('div');
+    divider.className = 'ms-divider';
+
+    const options = document.createElement('div');
+    options.className = 'ms-options';
+
+    const beginnerBtn = document.createElement('button');
+    beginnerBtn.className = 'ms-option ms-beginner';
+    beginnerBtn.setAttribute('aria-label', 'Start with a guided introduction');
+    beginnerBtn.innerHTML =
+      '<span class="ms-option-icon">🎓</span>' +
+      '<span class="ms-option-label">Beginner</span>' +
+      '<span class="ms-option-desc">Start with a guided introduction</span>';
+    beginnerBtn.addEventListener('click', () => {
+      console.log('Beginner mode selected');
+      setPhase(PHASE.ASSEMBLED);
+    });
+
+    const explorerBtn = document.createElement('button');
+    explorerBtn.className = 'ms-option ms-explorer';
+    explorerBtn.setAttribute('aria-label', 'Jump directly into the simulator');
+    explorerBtn.innerHTML =
+      '<span class="ms-option-icon">⚡</span>' +
+      '<span class="ms-option-label">Explorer</span>' +
+      '<span class="ms-option-desc">Jump directly into the simulator</span>';
+    explorerBtn.addEventListener('click', () => {
+      console.log('Explorer mode selected');
+      setPhase(PHASE.ASSEMBLED);
+    });
+
+    options.appendChild(beginnerBtn);
+    options.appendChild(explorerBtn);
+
+    const skip = document.createElement('p');
+    skip.className = 'ms-skip';
+    skip.textContent = 'esc to dismiss';
+
+    card.appendChild(eyebrow);
+    card.appendChild(title);
+    card.appendChild(subtitle);
+    card.appendChild(divider);
+    card.appendChild(options);
+    card.appendChild(skip);
+    backdrop.appendChild(card);
+    document.body.appendChild(backdrop);
+
+    _modeSelectorEl = backdrop;
+
+    const onKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        document.removeEventListener('keydown', onKeyDown);
+        console.log('Explorer mode selected');
+        setPhase(PHASE.ASSEMBLED);
+      }
+    };
+    document.addEventListener('keydown', onKeyDown);
+  }
+
+  function dismissModeSelector() {
+    if (!_modeSelectorEl) return;
+    const el = _modeSelectorEl;
+    _modeSelectorEl = null;
+    el.classList.add('ms-exit');
+    setTimeout(() => el.remove(), 280);
+  }
+
   // ── Handle Initialize click ─────────────────────────────────
   function handleInitialize() {
     if (currentPhase === PHASE.ASSEMBLED) return;
-    setPhase(PHASE.ASSEMBLED);
+    showModeSelector();
   }
 
   // ── Boot sequence (matches JSX useEffect timings) ───────────

@@ -1,0 +1,321 @@
+/* ══════════════════════════════════════════════════════════════
+   DS Academy – Mode Selector  (css/mode-selector.css)
+   Appears after Initialize is clicked, before entering the app.
+   Matches the dark-blue / cyan / gold theme of landing.css
+══════════════════════════════════════════════════════════════ */
+
+/* ── Backdrop ───────────────────────────────────────────────── */
+#mode-selector-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20000;              /* above landing-scene (10000) */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(9, 11, 16, 0.72);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+
+  /* entrance */
+  opacity: 0;
+  animation: msBackdropIn 0.22s ease forwards;
+}
+
+/* ── Card ───────────────────────────────────────────────────── */
+#mode-selector-card {
+  position: relative;
+  width: clamp(320px, 90vw, 520px);
+  padding: 48px 44px 44px;
+
+  background:
+    linear-gradient(135deg, rgba(0,229,255,0.04) 0%, transparent 60%),
+    rgba(13, 17, 26, 0.95);
+
+  border: 1px solid rgba(110, 231, 183, 0.18);
+  border-radius: 4px;
+
+  box-shadow:
+    0 0 0 1px rgba(0, 229, 255, 0.06),
+    0 0 60px 8px rgba(0, 229, 255, 0.07),
+    0 32px 80px rgba(0, 0, 0, 0.65),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+
+  /* entrance — scale from 0.92 → 1 with spring */
+  transform: scale(0.92) translateY(10px);
+  animation: msCardIn 0.38s 0.10s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+
+  overflow: hidden;
+}
+
+/* subtle scan-line texture on the card */
+#mode-selector-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 3px,
+    rgba(0, 229, 255, 0.012) 3px,
+    rgba(0, 229, 255, 0.012) 4px
+  );
+  pointer-events: none;
+  border-radius: inherit;
+}
+
+/* top-edge glow accent */
+#mode-selector-card::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 10%; right: 10%;
+  height: 1px;
+  background: linear-gradient(
+    to right,
+    transparent,
+    rgba(0, 229, 255, 0.55),
+    rgba(110, 231, 183, 0.55),
+    transparent
+  );
+  border-radius: 0 0 50% 50%;
+}
+
+/* ── Eyebrow label ──────────────────────────────────────────── */
+.ms-eyebrow {
+  font-family: ui-monospace, 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: rgba(0, 229, 255, 0.65);
+  margin: 0 0 16px;
+
+  opacity: 0;
+  animation: msFadeUp 0.4s 0.28s ease forwards;
+}
+
+/* ── Title ──────────────────────────────────────────────────── */
+.ms-title {
+  font-family: ui-monospace, 'JetBrains Mono', monospace;
+  font-size: clamp(18px, 3.5vw, 24px);
+  font-weight: 600;
+  line-height: 1.25;
+  color: rgba(241, 245, 249, 0.95);
+  margin: 0 0 10px;
+  letter-spacing: -0.01em;
+
+  opacity: 0;
+  animation: msFadeUp 0.4s 0.34s ease forwards;
+}
+
+/* ── Subtitle ───────────────────────────────────────────────── */
+.ms-subtitle {
+  font-family: ui-monospace, 'JetBrains Mono', monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  color: rgba(148, 163, 184, 0.75);
+  letter-spacing: 0.03em;
+  margin: 0 0 36px;
+
+  opacity: 0;
+  animation: msFadeUp 0.4s 0.40s ease forwards;
+}
+
+/* ── Divider ────────────────────────────────────────────────── */
+.ms-divider {
+  height: 1px;
+  background: linear-gradient(
+    to right,
+    transparent,
+    rgba(110, 231, 183, 0.25),
+    transparent
+  );
+  margin: 0 0 32px;
+  transform: scaleX(0);
+  transform-origin: left;
+  animation: msDivider 0.55s 0.44s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* ── Options row ────────────────────────────────────────────── */
+.ms-options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+
+  opacity: 0;
+  animation: msFadeUp 0.4s 0.50s ease forwards;
+}
+
+/* ── Option button ──────────────────────────────────────────── */
+.ms-option {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 7px;
+  padding: 20px 20px 18px;
+
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid rgba(110, 231, 183, 0.14);
+  border-radius: 3px;
+  cursor: pointer;
+  text-align: left;
+  transition:
+    background     0.22s ease,
+    border-color   0.22s ease,
+    transform      0.22s cubic-bezier(0.34, 1.56, 0.64, 1),
+    box-shadow     0.22s ease;
+
+  overflow: hidden;
+}
+
+/* corner accents — hidden until hover */
+.ms-option::before,
+.ms-option::after {
+  content: '';
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  opacity: 0;
+  transition: opacity 0.18s ease;
+}
+/* top-left L */
+.ms-option::before {
+  top: 0; left: 0;
+  border-top: 1.5px solid rgba(110, 231, 183, 0.85);
+  border-left: 1.5px solid rgba(110, 231, 183, 0.85);
+}
+/* bottom-right L */
+.ms-option::after {
+  bottom: 0; right: 0;
+  border-bottom: 1.5px solid rgba(110, 231, 183, 0.85);
+  border-right: 1.5px solid rgba(110, 231, 183, 0.85);
+}
+
+/* hover state */
+.ms-option:hover {
+  background: rgba(0, 229, 255, 0.05);
+  border-color: rgba(0, 229, 255, 0.35);
+  transform: translateY(-2px);
+  box-shadow:
+    0 0 20px 2px rgba(0, 229, 255, 0.08),
+    0 8px 24px rgba(0, 0, 0, 0.35);
+}
+.ms-option:hover::before,
+.ms-option:hover::after { opacity: 1; }
+
+/* active / press */
+.ms-option:active {
+  transform: scale(0.97) translateY(0);
+  transition-duration: 0.08s;
+}
+
+/* ── Option icon ────────────────────────────────────────────── */
+.ms-option-icon {
+  font-size: 22px;
+  line-height: 1;
+  /* subtle lift on hover via parent transform */
+}
+
+/* ── Option label ───────────────────────────────────────────── */
+.ms-option-label {
+  font-family: ui-monospace, 'JetBrains Mono', monospace;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(241, 245, 249, 0.90);
+  transition: color 0.22s ease, text-shadow 0.22s ease;
+}
+.ms-option:hover .ms-option-label {
+  color: rgba(110, 231, 183, 1);
+  text-shadow: 0 0 10px rgba(110, 231, 183, 0.3);
+}
+
+/* ── Option description ─────────────────────────────────────── */
+.ms-option-desc {
+  font-family: ui-monospace, 'JetBrains Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: rgba(148, 163, 184, 0.65);
+  line-height: 1.5;
+  transition: color 0.22s ease;
+}
+.ms-option:hover .ms-option-desc {
+  color: rgba(148, 163, 184, 0.85);
+}
+
+/* ── Beginner variant — gold accent on hover ────────────────── */
+.ms-option.ms-beginner:hover {
+  border-color: rgba(251, 191, 36, 0.35);
+  background: rgba(251, 191, 36, 0.04);
+  box-shadow:
+    0 0 20px 2px rgba(251, 191, 36, 0.07),
+    0 8px 24px rgba(0, 0, 0, 0.35);
+}
+.ms-option.ms-beginner::before,
+.ms-option.ms-beginner::after {
+  border-color: rgba(251, 191, 36, 0.85);
+}
+.ms-option.ms-beginner:hover .ms-option-label {
+  color: rgba(251, 191, 36, 1);
+  text-shadow: 0 0 10px rgba(251, 191, 36, 0.3);
+}
+
+/* ── Skip hint ──────────────────────────────────────────────── */
+.ms-skip {
+  margin-top: 24px;
+  text-align: center;
+  font-family: ui-monospace, 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(100, 116, 139, 0.45);
+
+  opacity: 0;
+  animation: msFadeUp 0.4s 0.60s ease forwards;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   KEYFRAMES
+══════════════════════════════════════════════════════════════ */
+
+@keyframes msBackdropIn {
+  to { opacity: 1; }
+}
+
+@keyframes msCardIn {
+  to { transform: scale(1) translateY(0); opacity: 1; }
+}
+
+@keyframes msFadeUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes msDivider {
+  to { transform: scaleX(1); opacity: 1; }
+}
+
+/* ── Exit animation ─────────────────────────────────────────── */
+#mode-selector-backdrop.ms-exit {
+  animation: msBackdropOut 0.25s ease forwards;
+}
+#mode-selector-backdrop.ms-exit #mode-selector-card {
+  animation: msCardOut 0.22s ease forwards;
+}
+
+@keyframes msBackdropOut {
+  to { opacity: 0; }
+}
+@keyframes msCardOut {
+  to { transform: scale(0.94) translateY(6px); opacity: 0; }
+}
+
+/* ── Responsive ─────────────────────────────────────────────── */
+@media (max-width: 480px) {
+  #mode-selector-card {
+    padding: 36px 24px 32px;
+  }
+  .ms-options {
+    grid-template-columns: 1fr;
+  }
+}
