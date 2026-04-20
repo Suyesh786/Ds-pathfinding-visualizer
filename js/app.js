@@ -1,14 +1,15 @@
 // ── app.js ─────────────────────────────────────────────
 // Main application entry point and simulation runner.
 
-import { Grid }            from './grid.js';
-import { Controls }        from './controls.js';
-import { bfs }             from './algorithms/bfs.js';
-import { dfs }             from './algorithms/dfs.js';
-import { CellAnimator }    from './visualization/animateCells.js';
-import { TraversalLog }    from './visualization/logs.js';
-import { scrollTo, sleep } from './utils/helpers.js';
-import { initLanding }     from './landing.js';
+import { Grid }                    from './grid.js';
+import { Controls }                from './controls.js';
+import { bfs }                     from './algorithms/bfs.js';
+import { dfs }                     from './algorithms/dfs.js';
+import { CellAnimator }            from './visualization/animateCells.js';
+import { TraversalLog }            from './visualization/logs.js';
+import { scrollTo, sleep }         from './utils/helpers.js';
+import { initLanding }             from './landing.js';
+import { startGuidedOnboarding }   from './onboarding.js';
 
 // ── Boot ────────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', () => {
@@ -17,28 +18,29 @@ window.addEventListener('DOMContentLoaded', () => {
   app.style.display = 'none';
   app.style.opacity = '0';
 
-  initLanding(() => {
+  // initLanding now calls back with the chosen mode string:
+  //   'guided'   → start onboarding after app init
+  //   'explorer' → no onboarding, go straight to simulator
+  initLanding((mode) => {
     app.style.display    = 'block';
     app.style.transition = 'opacity 0.5s ease';
 
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         app.style.opacity = '1';
-        initApp();
+        initApp(mode);
       });
     });
   });
 });
 
 // ── Main Init ────────────────────────────────────────────────
-function initApp() {
+function initApp(mode = 'explorer') {
   const grid     = new Grid('grid-container', 20);
   const simState = createSimState(grid);
   const controls = new Controls(grid, simState);
 
   // Patch place methods so BOTH Run and Maze buttons stay in sync.
-  // This is the single source of truth for node-placement callbacks —
-  // Controls._watchNodePlacement() has been removed to avoid conflicts.
   function patchGridCallbacks() {
     const origPlaceStart = Grid.prototype._placeStart.bind(grid);
     const origPlaceEnd   = Grid.prototype._placeEnd.bind(grid);
@@ -46,13 +48,13 @@ function initApp() {
     grid._placeStart = function (r, c, s) {
       origPlaceStart(r, c, s);
       controls.updateRunBtn();
-      controls.updateMazeBtn();   // ← added
+      controls.updateMazeBtn();
     };
 
     grid._placeEnd = function (r, c, s) {
       origPlaceEnd(r, c, s);
       controls.updateRunBtn();
-      controls.updateMazeBtn();   // ← added
+      controls.updateMazeBtn();
     };
   }
 
@@ -69,11 +71,23 @@ function initApp() {
     const size = parseInt(sizeSelect.value);
     grid.resize(size);
     controls.updateRunBtn();
-    controls.updateMazeBtn();     // ← added
+    controls.updateMazeBtn();
     simState.reset();
   });
 
   setStatus('Place Start & End nodes to begin', '');
+
+  // ── Launch onboarding if guided mode ─────────────────────────
+  // Slight delay so the app fade-in completes first (matches the
+  // 0.5s opacity transition on #app above).
+  if (mode === 'guided') {
+    setTimeout(() => {
+      // onboarding.js patches grid callbacks itself for node tracking.
+      // It must be started AFTER patchGridCallbacks() above so the
+      // chain is: app-patch → onboarding-patch (innermost wins).
+      startGuidedOnboarding(grid, controls, simState);
+    }, 600);
+  }
 }
 
 // ── Status helper ─────────────────────────────────────────────
@@ -339,4 +353,12 @@ function createSimState(grid) {
   }
 
   return { run, pause, resume, reset, isPaused: () => _paused };
+}
+
+// ── setStatus (global helper for onboarding.js access) ────────
+function setStatus(text, state) {
+  const dot  = document.getElementById('status-dot');
+  const span = document.getElementById('status-text');
+  if (dot)  dot.className    = `status-dot ${state}`;
+  if (span) span.textContent = text;
 }

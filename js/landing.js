@@ -10,6 +10,9 @@
 //  Background matches the site's dark-blue #090b10 theme.
 //  Calls window.__landingDone() when the user clicks Initialize
 //  (defined in app.js to dismiss the scene and show the app).
+//
+//  ONBOARDING: Beginner → calls onDone('guided')
+//              Explorer → calls onDone('explorer')
 // ══════════════════════════════════════════════════════════════
 
 // ── Grid constants (match JSX exactly) ───────────────────────
@@ -438,114 +441,81 @@ function animateTraces(svg, gridWrapper) {
   const vH = window.innerHeight;
 
   // ── Define all 8 traces ─────────────────────────────────────
-  // Each trace is: [ [startX, startY], [turn1X, turn1Y], ..., [endX, endY] ]
-  // Traces exit the grid edge, make 1 right-angle turn, then
-  // optionally branch (represented as a second independent polyline
-  // that shares the first segment).
-  //
-  // Delay groups (seconds):
-  //   0.10 — top two traces (first to appear)
-  //   0.25 — bottom two traces
-  //   0.40 — left two traces
-  //   0.55 — right two traces
-  // Duration: 1.1s each, giving a staggered draw-out over ~1.6s total.
-
   const DURATION = 1.1;
 
   // ── TOP EDGE ─────────────────────────────────────────────────
-  // Trace T1: exits top edge at 28% from left, goes up, turns left, exits screen
   {
     const ox = gLeft + box.width * 0.28;
     const oy = gTop;
     const turnY = gTop - 90;
     const endX  = Math.max(0, gLeft - 180);
     makeTrace(svg, [[ox, oy], [ox, turnY], [endX, turnY]], 0.10, DURATION);
-    // Branch from elbow: goes further up toward screen top
     makeTrace(svg, [[ox, turnY], [ox, Math.max(0, gTop - 220)]], 0.20, DURATION * 0.6);
   }
-
-  // Trace T2: exits top edge at 72% from left, goes up, turns right, exits screen
   {
     const ox = gLeft + box.width * 0.72;
     const oy = gTop;
     const turnY = gTop - 70;
     const endX  = Math.min(vW, gRight + 200);
     makeTrace(svg, [[ox, oy], [ox, turnY], [endX, turnY]], 0.10, DURATION);
-    // Branch: short vertical going toward top-right corner
     makeTrace(svg, [[ox, turnY], [ox, Math.max(0, gTop - 180)]], 0.20, DURATION * 0.6);
   }
 
   // ── BOTTOM EDGE ──────────────────────────────────────────────
-  // Trace B1: exits bottom edge at 30% from left, goes down, turns left
   {
     const ox = gLeft + box.width * 0.30;
     const oy = gBottom;
     const turnY = gBottom + 80;
     const endX  = Math.max(0, gLeft - 160);
     makeTrace(svg, [[ox, oy], [ox, turnY], [endX, turnY]], 0.25, DURATION);
-    // Branch: short segment going further down
     makeTrace(svg, [[ox, turnY], [ox, Math.min(vH, gBottom + 200)]], 0.35, DURATION * 0.6);
   }
-
-  // Trace B2: exits bottom edge at 70% from left, goes down, turns right
   {
     const ox = gLeft + box.width * 0.70;
     const oy = gBottom;
     const turnY = gBottom + 100;
     const endX  = Math.min(vW, gRight + 190);
     makeTrace(svg, [[ox, oy], [ox, turnY], [endX, turnY]], 0.25, DURATION);
-    // Branch: short segment going further down
     makeTrace(svg, [[ox, turnY], [ox, Math.min(vH, gBottom + 210)]], 0.35, DURATION * 0.6);
   }
 
   // ── LEFT EDGE ────────────────────────────────────────────────
-  // Trace L1: exits left edge at 35% from top, goes left, turns up
   {
     const ox = gLeft;
     const oy = gTop + box.height * 0.35;
     const turnX = gLeft - 110;
     const endY  = Math.max(0, gTop - 120);
     makeTrace(svg, [[ox, oy], [turnX, oy], [turnX, endY]], 0.40, DURATION);
-    // Branch from elbow: goes further left toward screen edge
     makeTrace(svg, [[turnX, oy], [Math.max(0, gLeft - 260), oy]], 0.50, DURATION * 0.6);
   }
-
-  // Trace L2: exits left edge at 65% from top, goes left, turns down
   {
     const ox = gLeft;
     const oy = gTop + box.height * 0.65;
     const turnX = gLeft - 130;
     const endY  = Math.min(vH, gBottom + 130);
     makeTrace(svg, [[ox, oy], [turnX, oy], [turnX, endY]], 0.40, DURATION);
-    // Branch: goes further left
     makeTrace(svg, [[turnX, oy], [Math.max(0, gLeft - 280), oy]], 0.50, DURATION * 0.6);
   }
 
   // ── RIGHT EDGE ───────────────────────────────────────────────
-  // Trace R1: exits right edge at 35% from top, goes right, turns up
   {
     const ox = gRight;
     const oy = gTop + box.height * 0.35;
     const turnX = gRight + 110;
     const endY  = Math.max(0, gTop - 120);
     makeTrace(svg, [[ox, oy], [turnX, oy], [turnX, endY]], 0.55, DURATION);
-    // Branch from elbow: goes further right
     makeTrace(svg, [[turnX, oy], [Math.min(vW, gRight + 260), oy]], 0.65, DURATION * 0.6);
   }
-
-  // Trace R2: exits right edge at 65% from top, goes right, turns down
   {
     const ox = gRight;
     const oy = gTop + box.height * 0.65;
     const turnX = gRight + 130;
     const endY  = Math.min(vH, gBottom + 130);
     makeTrace(svg, [[ox, oy], [turnX, oy], [turnX, endY]], 0.55, DURATION);
-    // Branch: goes further right
     makeTrace(svg, [[turnX, oy], [Math.min(vW, gRight + 280), oy]], 0.65, DURATION * 0.6);
   }
 
   // ── Trigger all traces to draw ───────────────────────────────
-  // Force a reflow so the initial dashoffset is painted before we change it
   void svg.getBoundingClientRect();
 
   const allPolys   = svg.querySelectorAll('polyline');
@@ -564,6 +534,12 @@ function animateTraces(svg, gridWrapper) {
 // ══════════════════════════════════════════════════════════════
 //  MAIN LANDING INIT
 // ══════════════════════════════════════════════════════════════
+
+/**
+ * initLanding
+ * @param {(mode: 'guided' | 'explorer') => void} onDone
+ *   Called when user completes mode selection. Mode is 'guided' or 'explorer'.
+ */
 export function initLanding(onDone) {
 
   // ── Build DOM ───────────────────────────────────────────────
@@ -582,13 +558,14 @@ export function initLanding(onDone) {
   buildVignette(gridWrapper);
 
   // ── Memory traces SVG (built now, triggered in GRID phase) ──
-  // Must be called after gridWrapper is in the DOM.
   const tracesSvg = buildTraces(scene, gridWrapper);
 
   const invitation = buildInvitation(scene, handleInitialize);
 
   // ── State ───────────────────────────────────────────────────
   let currentPhase = PHASE.VOID;
+  // Store the chosen mode so the ASSEMBLED phase can pass it to onDone
+  let _chosenMode  = 'explorer';
 
   // ── Phase machine ───────────────────────────────────────────
   function setPhase(newPhase) {
@@ -607,9 +584,7 @@ export function initLanding(onDone) {
         pulseDot.classList.add('hidden');
 
         gridWrapper.classList.add('visible');
-        // Trigger SVG grid line draw
         animateGridLines(gridSvg);
-        // Trigger memory traces draw (slight delay so grid lines lead)
         schedule(() => animateTraces(tracesSvg, gridWrapper), 300);
         break;
 
@@ -623,23 +598,16 @@ export function initLanding(onDone) {
             const cell = getCell(cellLayer, r, c);
             if (cell && !LOGO_SET.has(`${r}-${c}`)) {
               cell.classList.add('lc-visited');
-              setTimeout(() => {
-                if (cell.classList.contains('lc-visited')) {
-                  // No-op — the ::after fires once via animation, no cleanup needed.
-                }
-              }, 500);
             }
           }, i * BFS_SPEED_MS);
         });
 
-        // Advance to IDENTITY after BFS finishes
         schedule(() => setPhase(PHASE.IDENTITY), BFS_MAX_NODES * BFS_SPEED_MS + 150);
         break;
       }
 
       // ── IDENTITY → light up GRAPH letters one by one ─────
       case PHASE.IDENTITY: {
-        // Sort top→bottom, left→right (reading order)
         const sorted = [...LOGO_SET].sort((a, b) => {
           const [ar, ac] = a.split('-').map(Number);
           const [br, bc] = b.split('-').map(Number);
@@ -663,9 +631,8 @@ export function initLanding(onDone) {
         invitation.classList.add('visible');
         break;
 
-      // ── ASSEMBLED → mode selected, entering app ──────────
+      // ── ASSEMBLED → user made their choice, entering app ─
       case PHASE.ASSEMBLED:
-        // Dismiss mode selector if still visible
         dismissModeSelector();
 
         invitation.classList.remove('visible');
@@ -675,7 +642,8 @@ export function initLanding(onDone) {
         schedule(() => {
           scene.remove();
           clearAllTimers();
-          onDone();
+          // ← Pass the chosen mode to app.js
+          onDone(_chosenMode);
         }, 650);
         break;
     }
@@ -711,36 +679,38 @@ export function initLanding(onDone) {
     const options = document.createElement('div');
     options.className = 'ms-options';
 
-    const beginnerBtn = document.createElement('button');
-    beginnerBtn.className = 'ms-option ms-beginner';
-    beginnerBtn.setAttribute('aria-label', 'Start with a guided introduction');
-    beginnerBtn.innerHTML =
+    // ── Guided Mode button ──────────────────────────────────
+    const guidedBtn = document.createElement('button');
+    guidedBtn.className = 'ms-option ms-beginner';
+    guidedBtn.setAttribute('aria-label', 'Start with a guided introduction');
+    guidedBtn.innerHTML =
       '<span class="ms-option-icon">🎓</span>' +
-      '<span class="ms-option-label">Beginner</span>' +
-      '<span class="ms-option-desc">Start with a guided introduction</span>';
-    beginnerBtn.addEventListener('click', () => {
-      console.log('Beginner mode selected');
+      '<span class="ms-option-label">Guided Mode</span>' +
+      '<span class="ms-option-desc">Step-by-step walkthrough of BFS vs DFS with live hints</span>';
+    guidedBtn.addEventListener('click', () => {
+      _chosenMode = 'guided';
       setPhase(PHASE.ASSEMBLED);
     });
 
+    // ── Explorer Mode button ────────────────────────────────
     const explorerBtn = document.createElement('button');
     explorerBtn.className = 'ms-option ms-explorer';
     explorerBtn.setAttribute('aria-label', 'Jump directly into the simulator');
     explorerBtn.innerHTML =
       '<span class="ms-option-icon">⚡</span>' +
-      '<span class="ms-option-label">Explorer</span>' +
-      '<span class="ms-option-desc">Jump directly into the simulator</span>';
+      '<span class="ms-option-label">Explorer Mode</span>' +
+      '<span class="ms-option-desc">Jump directly in and discover everything yourself</span>';
     explorerBtn.addEventListener('click', () => {
-      console.log('Explorer mode selected');
+      _chosenMode = 'explorer';
       setPhase(PHASE.ASSEMBLED);
     });
 
-    options.appendChild(beginnerBtn);
+    options.appendChild(guidedBtn);
     options.appendChild(explorerBtn);
 
     const skip = document.createElement('p');
     skip.className = 'ms-skip';
-    skip.textContent = 'esc to dismiss';
+    skip.textContent = 'esc to skip · explorer mode';
 
     card.appendChild(eyebrow);
     card.appendChild(title);
@@ -756,7 +726,7 @@ export function initLanding(onDone) {
     const onKeyDown = (e) => {
       if (e.key === 'Escape') {
         document.removeEventListener('keydown', onKeyDown);
-        console.log('Explorer mode selected');
+        _chosenMode = 'explorer';
         setPhase(PHASE.ASSEMBLED);
       }
     };
@@ -777,17 +747,10 @@ export function initLanding(onDone) {
     showModeSelector();
   }
 
-  // ── Boot sequence (matches JSX useEffect timings) ───────────
-  // Phase 0: dot pulses immediately
+  // ── Boot sequence ────────────────────────────────────────────
   setPhase(PHASE.VOID);
-
-  // Phase 1: grid materialises at 200 ms
-  schedule(() => setPhase(PHASE.GRID), 200);
-
-  // Phase 2: BFS whisper starts at 1000 ms (reduced from 1400ms — less idle wait)
+  schedule(() => setPhase(PHASE.GRID),    200);
   schedule(() => setPhase(PHASE.WHISPER), 1000);
 
-  // Allow external skip (e.g. for dev / impatient users)
-  // Exposed as window.__skipLanding()
   window.__skipLanding = () => handleInitialize();
 }

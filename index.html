@@ -9,11 +9,14 @@
   <link rel="stylesheet" href="css/style.css" />
   <link rel="stylesheet" href="css/animations.css" />
 
-  <!-- ── Landing scene styles (NEW) ── -->
+  <!-- ── Landing scene styles ── -->
   <link rel="stylesheet" href="css/landing.css" />
 
   <!-- ── Mode selector overlay ── -->
   <link rel="stylesheet" href="css/mode-selector.css" />
+
+  <!-- ── Guided onboarding system ── -->
+  <link rel="stylesheet" href="css/onboarding.css" />
 </head>
 <body>
 
@@ -241,10 +244,10 @@
 
 </div><!-- /#app -->
 
-<!-- ── Scripts ─────────────────────────────────────────────────
+<!-- ── Scripts ────────────────────────────────────────────────
      landing.js runs first (module, so deferred by default).
      app.js and backgroundNetwork.js also run as modules.
-     app.js exports initApp() and waits for the landing callback.
+     app.js imports onboarding.js and starts it when mode='guided'.
 ──────────────────────────────────────────────────────────────── -->
 <script type="module" src="js/landing.js"></script>
 <script type="module" src="js/app.js"></script>

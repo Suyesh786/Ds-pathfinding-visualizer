@@ -1,0 +1,425 @@
+/* ══════════════════════════════════════════════════════════════
+   DS Academy – Guided Onboarding Styles  (css/onboarding.css)
+
+   Philosophy: every rule here extends the existing design language.
+   - Uses --accent, --accent-dim, --bg-card, --border, --text-dim
+     from style.css — no new colour tokens introduced.
+   - Entrance/exit animations mirror existing patterns:
+     fadeSlideUp (fadeIn + translateY), btnGlow (for pulse ring),
+     insightFadeIn (for callout/banner appearance).
+   - Easing functions match the two house easings:
+     cubic-bezier(0.16, 1, 0.3, 1)  — smooth spring (landing)
+     cubic-bezier(0.34, 1.56, 0.64, 1) — bouncy spring (nodes/path)
+   - Typography uses --font-mono throughout (JetBrains Mono).
+══════════════════════════════════════════════════════════════ */
+
+/* ══════════════════════════════════════════
+   GHOST GRID CELLS
+   Applied by onboarding.js to existing grid cells.
+   Uses the already-registered .cell-visited and .cell-path
+   keyframes from animations.css — we just tint them lighter
+   so the ghost demo reads as "demo, not real data".
+══════════════════════════════════════════ */
+
+/* Ghost overlay — visited cells in demo are more translucent */
+.cell.cell-visited.onb-ghost {
+  /* Override the visited background with a subtler tint */
+  /* The cell-visited animation still fires, keeping the wave feel */
+  filter: opacity(0.55) saturate(0.8);
+}
+
+.cell.cell-path.onb-ghost {
+  filter: opacity(0.60) saturate(0.7);
+}
+
+/* ══════════════════════════════════════════
+   PROGRESS BAR
+   Fixed to top of viewport. Slides down on entrance,
+   slides up on exit. Stays out of the way — 40px tall.
+══════════════════════════════════════════ */
+
+.onb-progress-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 9000;
+  background:
+    linear-gradient(to right, rgba(0,229,255,0.04), rgba(124,58,237,0.04)),
+    rgba(13, 17, 26, 0.96);
+  border-bottom: 1px solid var(--border);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+
+  /* Entrance: slide down */
+  transform: translateY(-100%);
+  opacity: 0;
+  transition:
+    transform 0.38s cubic-bezier(0.16, 1, 0.3, 1),
+    opacity   0.28s ease;
+}
+
+.onb-progress-bar.onb-bar-visible {
+  transform: translateY(0);
+  opacity: 1;
+}
+
+.onb-progress-bar.onb-bar-exit {
+  transform: translateY(-100%);
+  opacity: 0;
+}
+
+.onb-progress-inner {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 0 20px;
+  height: 40px;
+}
+
+.onb-progress-label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgba(0, 229, 255, 0.60);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.onb-progress-track {
+  flex: 1;
+  height: 3px;
+  background: var(--border);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.onb-progress-fill {
+  height: 100%;
+  background: linear-gradient(to right, var(--accent), rgba(110, 231, 183, 0.9));
+  border-radius: 2px;
+  width: 0%;
+  transition: width 0.55s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 0 6px rgba(0, 229, 255, 0.35);
+}
+
+.onb-progress-step {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  color: var(--text-dim);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.onb-skip-btn {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  padding: 3px 10px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: border-color 0.2s ease, color 0.2s ease;
+}
+
+.onb-skip-btn:hover {
+  border-color: var(--accent-dim);
+  color: var(--accent);
+}
+
+/* ══════════════════════════════════════════
+   BEACON
+   Pulsing ring that attaches to buttons.
+   Absolutely positioned inside the button (btn gets position:relative).
+   Two rings — inner solid, outer fading — for a "live indicator" feel.
+   Mirrors the statusPulse keyframe from animations.css.
+══════════════════════════════════════════ */
+
+.onb-beacon {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  width: 10px;
+  height: 10px;
+  pointer-events: none;
+  z-index: 10;
+}
+
+/* Inner dot */
+.onb-beacon::before {
+  content: '';
+  position: absolute;
+  inset: 3px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: onbBeaconPulse 1.4s ease-in-out infinite;
+}
+
+/* Outer ring — expands and fades, like goal-ripple */
+.onb-beacon::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 1.5px solid var(--accent);
+  animation: onbBeaconRing 1.4s ease-out infinite;
+}
+
+@keyframes onbBeaconPulse {
+  0%, 100% { opacity: 1;   transform: scale(1); }
+  50%       { opacity: 0.6; transform: scale(1.2); }
+}
+
+@keyframes onbBeaconRing {
+  0%   { transform: scale(1);   opacity: 0.8; }
+  100% { transform: scale(2.4); opacity: 0;   }
+}
+
+/* ══════════════════════════════════════════
+   CALLOUT
+   Tooltip-style card that appears below or above a target element.
+   Uses the same aesthetic as mode-selector-card:
+   - Dark glass background
+   - Cyan border
+   - Monospace font
+   - Corner accent pseudo-elements
+   Entrance mirrors insightFadeIn (translateY + opacity).
+══════════════════════════════════════════ */
+
+.onb-callout {
+  position: relative;
+  display: inline-flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 12px 16px;
+  margin-top: 8px;
+  margin-bottom: 4px;
+
+  background:
+    linear-gradient(135deg, rgba(0,229,255,0.04) 0%, transparent 60%),
+    rgba(13, 17, 26, 0.97);
+
+  border: 1px solid rgba(0, 229, 255, 0.20);
+  border-radius: 3px;
+  box-shadow:
+    0 0 0 1px rgba(0, 229, 255, 0.06),
+    0 0 24px 4px rgba(0, 229, 255, 0.05),
+    0 8px 32px rgba(0, 0, 0, 0.55);
+
+  max-width: 320px;
+  z-index: 100;
+
+  /* Corner accent — top-left */
+  overflow: visible;
+
+  /* Entrance */
+  opacity: 0;
+  transform: translateY(6px);
+  transition:
+    opacity   0.28s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.32s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Top-edge accent line — matches mode-selector-card::after */
+.onb-callout::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 10%; right: 10%;
+  height: 1px;
+  background: linear-gradient(
+    to right,
+    transparent,
+    rgba(0, 229, 255, 0.45),
+    rgba(110, 231, 183, 0.45),
+    transparent
+  );
+  pointer-events: none;
+}
+
+.onb-callout-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.onb-callout-exit {
+  opacity: 0;
+  transform: translateY(-4px);
+  transition:
+    opacity   0.20s ease,
+    transform 0.20s ease;
+}
+
+/* Positions */
+.onb-callout-above {
+  margin-top: 0;
+  margin-bottom: 8px;
+  transform: translateY(-6px);
+}
+.onb-callout-above.onb-callout-visible {
+  transform: translateY(0);
+}
+
+/* Arrow — a small triangle pointing toward the target */
+.onb-callout-arrow {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  background: rgba(13, 17, 26, 0.97);
+  border-left: 1px solid rgba(0, 229, 255, 0.20);
+  border-top: 1px solid rgba(0, 229, 255, 0.20);
+  top: -4px;
+  left: 18px;
+  transform: rotate(45deg);
+}
+
+.onb-callout-above .onb-callout-arrow {
+  top: auto;
+  bottom: -4px;
+  transform: rotate(225deg);
+}
+
+.onb-callout-title {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: rgba(241, 245, 249, 0.95);
+  margin: 0;
+}
+
+.onb-callout-body {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.03em;
+  line-height: 1.6;
+  color: rgba(148, 163, 184, 0.80);
+  margin: 0;
+}
+
+/* ══════════════════════════════════════════
+   COMPLETION BANNER
+   Appears below the comparison section.
+   Mirrors algo-card aesthetic — same border, background, shadow.
+   Uses insightFadeIn timing for entrance.
+══════════════════════════════════════════ */
+
+.onb-complete-banner {
+  margin: 16px 0 24px;
+  padding: 0 20px;
+
+  opacity: 0;
+  transform: translateY(10px);
+  transition:
+    opacity   0.40s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.40s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.onb-complete-banner.onb-complete-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.onb-complete-banner.onb-complete-exit {
+  opacity: 0;
+  transform: translateY(-6px);
+}
+
+.onb-complete-inner {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 20px;
+
+  background:
+    linear-gradient(135deg, rgba(110,231,183,0.06) 0%, transparent 60%),
+    var(--bg-card);
+
+  border: 1px solid rgba(110, 231, 183, 0.20);
+  border-radius: 3px;
+  box-shadow:
+    0 0 0 1px rgba(110, 231, 183, 0.06),
+    0 0 30px 4px rgba(110, 231, 183, 0.05),
+    0 8px 24px rgba(0, 0, 0, 0.40);
+}
+
+.onb-complete-icon {
+  font-size: 20px;
+  color: rgba(110, 231, 183, 0.90);
+  flex-shrink: 0;
+  animation: onbStarSpin 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+@keyframes onbStarSpin {
+  from { transform: scale(0) rotate(-90deg); opacity: 0; }
+  to   { transform: scale(1) rotate(0deg);   opacity: 1; }
+}
+
+.onb-complete-text {
+  flex: 1;
+}
+
+.onb-complete-title {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: rgba(110, 231, 183, 0.95);
+  margin: 0 0 3px;
+}
+
+.onb-complete-sub {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  line-height: 1.6;
+  color: var(--text-dim);
+  margin: 0;
+}
+
+.onb-complete-dismiss {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-size: 14px;
+  color: var(--text-dim);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: border-color 0.2s ease, color 0.2s ease;
+}
+
+.onb-complete-dismiss:hover {
+  border-color: rgba(110, 231, 183, 0.35);
+  color: rgba(110, 231, 183, 0.9);
+}
+
+/* ══════════════════════════════════════════
+   RESPONSIVE
+   The progress bar text collapses on mobile.
+══════════════════════════════════════════ */
+
+@media (max-width: 600px) {
+  .onb-progress-label {
+    display: none;
+  }
+  .onb-callout {
+    max-width: 240px;
+    font-size: 9px;
+  }
+  .onb-complete-inner {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+}
