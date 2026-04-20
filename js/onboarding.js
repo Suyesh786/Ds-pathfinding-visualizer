@@ -1,45 +1,37 @@
 // ══════════════════════════════════════════════════════════════
 //  DS Academy – Guided Onboarding System  (js/onboarding.js)
-//  v3 — extended with Simulator Controls Tour
+//  v5 — user-controlled Continue button for sim-tour Sub-A & Sub-B
 //
-//  CHANGES FROM v2:
-//  1. _stepWatchSim() replaced with a 3-sub-step Simulator Controls
-//     Tour that runs while the animation plays normally:
+//  CHANGES FROM v4:
 //
-//       Sub-step A — Log Panel
-//         Waits for 2–3 log entries via MutationObserver, then:
-//         • auto-pauses the simulation
-//         • highlights #bfs-log with a soft glow ring
-//         • shows fixed tooltip above the log
-//         • auto-resumes after 2 s
+//  ── Sim-tour Sub-A (Log Panel) ───────────────────────────────
+//  Previously: auto-advanced after a 2.2 s timer.
+//  Now: tooltip contains a [ Continue ] button.  The simulation
+//  stays paused and the tooltip stays visible until the user
+//  clicks Continue.  No timer at all.
 //
-//       Sub-step B — Speed Slider
-//         • highlights the speed slider knob with a pulse
-//         • shows tooltip above #speed-slider
-//         • fades out after 2 s
+//  ── Sim-tour Sub-B (Speed Slider) ────────────────────────────
+//  Previously: auto-advanced after a 2.2 s timer.
+//  Now: same Continue button pattern.  Sim stays paused.
 //
-//       Sub-step C — Pause / Resume
-//         • adds beacon to #btn-pause
-//         • shows tooltip above it
-//         • auto-pauses → waits 2 s → auto-resumes → proceeds to complete
+//  ── Sim-tour Sub-C (Resume) ──────────────────────────────────
+//  UNCHANGED — tooltip has no Continue button.  User must click
+//  the actual Resume button to proceed.
 //
-//  2. _showSimTooltip() — variant of _showTooltip that accepts a
-//     raw DOM element instead of an ID, needed for log containers
-//     that are not buttons.
+//  ── _showTooltipOnEl() ───────────────────────────────────────
+//  New optional third parameter: onContinue (function | null).
+//  When provided:
+//    • A <button class="onb-tooltip-continue"> is appended.
+//    • The button's click handler calls onContinue() once then
+//      removes itself (one-shot, prevents double-fire).
+//    • TOOLTIP_H is increased to 120 px for vertical positioning
+//      so the taller card doesn't overlap the target element.
+//  When null/omitted: behaviour is identical to v4.
 //
-//  3. _highlightEl() / _clearHighlight() — adds/removes a CSS glow
-//     ring class without touching layout, so the log panel keeps its
-//     scrolling behaviour and the slider keeps its interaction.
-//
-//  All other methods, the progress bar, beacons, completion banner,
-//  and positioning logic are UNCHANGED from v2.
-//
-//  Reuses without modification:
-//  - showToast() from helpers.js
-//  - .btn-glow / btnGlowPulse from animations.css + style.css
-//  - CSS variables (--accent, --bg-card, --border, --font-mono…)
-//  - _pulseOnce() pattern from controls.js
-//  - onb-tooltip / onb-tooltip-visible styles from onboarding.css
+//  ── Everything else ──────────────────────────────────────────
+//  All other steps, race-condition guards, infrastructure
+//  methods (progress bar, beacon, completion banner, highlight
+//  ring, log observer, tooltip positioning) are UNCHANGED.
 // ══════════════════════════════════════════════════════════════
 
 import { showToast } from './utils/helpers.js';
@@ -48,9 +40,9 @@ import { showToast } from './utils/helpers.js';
 const ONBOARDING_STEPS = [
   'highlight-start', // Step 1 — glow Start btn, tooltip above it
   'highlight-end',   // Step 2 — glow End btn, tooltip above it
-  'wall-hint',       // Step 3 — tooltip above wall btn, 2s then auto
+  'wall-hint',       // Step 3 — tooltip above wall btn, 2 s auto
   'run-hint',        // Step 4 — beacon + tooltip above Run btn
-  'watch-sim',       // Step 5 — simulator controls tour
+  'watch-sim',       // Step 5 — simulator controls tour (3 sub-steps)
   'complete',        // Step 6 — completion banner
 ];
 
@@ -74,20 +66,28 @@ class OnboardingController {
     this.controls  = controls;
     this.simRunner = simRunner;
 
-    this._stepIdx      = -1;
-    this._active       = true;
-    this._timers       = [];
-    this._beacons      = [];
-    this._tooltip      = null;   // single floating tooltip at a time
-    this._startPlaced  = false;
-    this._endPlaced    = false;
-    this._nodesReady   = false;
+    this._stepIdx    = -1;
+    this._active     = true;
+    this._timers     = [];
+    this._beacons    = [];
+    this._tooltip    = null;
 
-    // Cleanup refs for the sim-tour phase
-    this._logObserver      = null;   // MutationObserver watching bfs-log
-    this._highlightedEls   = [];     // elements given the glow ring class
+    // ── Race-condition state guard ─────────────────────────────
+    this._state = {
+      startPlaced  : false,
+      endPlaced    : false,
+      runClicked   : false,
+      simTourDone  : false,
+    };
 
-    // Keep tooltip anchored on scroll/resize
+    // Seed from existing grid state (handles fast users)
+    if (grid.startNode) this._state.startPlaced = true;
+    if (grid.endNode)   this._state.endPlaced   = true;
+
+    this._logObserver      = null;
+    this._highlightedEls   = [];
+    this._resumeClickHandler = null;
+
     this._repositionBound = () => this._repositionTooltip();
     window.addEventListener('scroll', this._repositionBound, { passive: true });
     window.addEventListener('resize', this._repositionBound, { passive: true });
@@ -114,15 +114,16 @@ class OnboardingController {
 
     this.grid._placeStart = function(r, c, s) {
       origStart(r, c, s);
-      if (!self._startPlaced) {
-        self._startPlaced = true;
+      if (!self._state.startPlaced) {
+        self._state.startPlaced = true;
         self._onStartPlaced();
       }
     };
+
     this.grid._placeEnd = function(r, c, s) {
       origEnd(r, c, s);
-      if (!self._endPlaced) {
-        self._endPlaced = true;
+      if (!self._state.endPlaced) {
+        self._state.endPlaced = true;
         self._onEndPlaced();
       }
     };
@@ -138,8 +139,7 @@ class OnboardingController {
 
   _onEndPlaced() {
     if (!this._active) return;
-    if (this._startPlaced && !this._nodesReady) {
-      this._nodesReady = true;
+    if (this._state.startPlaced) {
       this._hideTooltip();
       this._removeBeacons();
       this._clearTimers();
@@ -154,7 +154,15 @@ class OnboardingController {
   start() {
     this._showProgressBar();
     showToast('Guided Mode — follow the steps to get started', '🎓', 4000);
-    // Small delay so the app fade-in settles before we render the tooltip
+
+    if (this._state.startPlaced && this._state.endPlaced) {
+      this._schedule(() => this._goToStep('wall-hint'), 900);
+      return;
+    }
+    if (this._state.startPlaced) {
+      this._schedule(() => this._goToStep('highlight-end'), 900);
+      return;
+    }
     this._schedule(() => this._goToStep('highlight-start'), 900);
   }
 
@@ -166,6 +174,11 @@ class OnboardingController {
     this._hideProgressBar();
     this._disconnectLogObserver();
     this._clearHighlights();
+    if (this._resumeClickHandler) {
+      const pauseBtn = document.getElementById('btn-pause');
+      pauseBtn?.removeEventListener('click', this._resumeClickHandler);
+      this._resumeClickHandler = null;
+    }
     window.removeEventListener('scroll', this._repositionBound);
     window.removeEventListener('resize', this._repositionBound);
   }
@@ -194,10 +207,10 @@ class OnboardingController {
   //  STEP 1 — Highlight Start button
   // ══════════════════════════════════════════
   _stepHighlightStart() {
-    // Switch grid to start-placement mode so the user's next click works
+    if (this._state.startPlaced) { this._goToStep('highlight-end'); return; }
+
     this.grid.setMode('start');
     this._syncModeHighlight('btn-start');
-
     this._addBeacon('btn-start');
     this._pulseButton('btn-start');
 
@@ -212,9 +225,10 @@ class OnboardingController {
   //  STEP 2 — Highlight End button
   // ══════════════════════════════════════════
   _stepHighlightEnd() {
+    if (this._state.endPlaced) { this._goToStep('wall-hint'); return; }
+
     this.grid.setMode('end');
     this._syncModeHighlight('btn-end');
-
     this._addBeacon('btn-end');
     this._pulseButton('btn-end');
 
@@ -226,12 +240,11 @@ class OnboardingController {
   }
 
   // ══════════════════════════════════════════
-  //  STEP 3 — Wall hint (2 s then auto-advance)
+  //  STEP 3 — Wall hint (2 s auto-advance)
   // ══════════════════════════════════════════
   _stepWallHint() {
     this.grid.setMode('wall');
     this._syncModeHighlight('btn-wall');
-
     this._addBeacon('btn-wall');
 
     this._showTooltip(
@@ -240,7 +253,6 @@ class OnboardingController {
       'Click and drag on the grid to create obstacles. Walls are optional — skip ahead anytime.'
     );
 
-    // Auto-advance after 2 seconds regardless of interaction
     this._schedule(() => {
       this._hideTooltip();
       this._removeBeacons();
@@ -252,18 +264,21 @@ class OnboardingController {
   //  STEP 4 — Run button hint
   // ══════════════════════════════════════════
   _stepRunHint() {
+    if (this._state.runClicked) { this._goToStep('watch-sim'); return; }
+
     this._addBeacon('btn-run');
     this._pulseButton('btn-run');
 
     this._showTooltip(
       'btn-run',
       '▶ Run the simulation',
-      "BFS and DFS will race side-by-side. Watch how differently they explore the grid!"
+      'BFS and DFS will race side-by-side. Watch how differently they explore the grid!'
     );
 
     const runBtn = document.getElementById('btn-run');
-    const onRun = () => {
+    const onRun  = () => {
       runBtn?.removeEventListener('click', onRun);
+      this._state.runClicked = true;
       this._hideTooltip();
       this._removeBeacons();
       this._schedule(() => this._goToStep('watch-sim'), 1200);
@@ -272,26 +287,37 @@ class OnboardingController {
   }
 
   // ══════════════════════════════════════════
-  //  STEP 5 — Simulator Controls Tour  (v3)
+  //  STEP 5 — Simulator Controls Tour  (v5)
   //
-  //  Three sequential sub-steps run while the BFS/DFS animation
-  //  continues normally.  The only interruptions are the two
-  //  auto-pause/resume moments in Sub-step A and Sub-step C.
+  //  Sub-A  auto-pause → log tooltip with [ Continue ] button
+  //         user clicks Continue → Sub-B  (sim stays paused)
+  //
+  //  Sub-B  speed tooltip with [ Continue ] button
+  //         user clicks Continue → Sub-C  (sim stays paused)
+  //
+  //  Sub-C  highlight Resume btn → tooltip "Press Resume"
+  //         no Continue button — user must click the actual
+  //         Resume button to finish the tour
   // ══════════════════════════════════════════
   _stepWatchSim() {
-    // Kick off sub-step A: wait for log entries, then teach log panel.
+    if (this._state.simTourDone) return;
+    this._state.simTourDone = true;
     this._simTourSubA();
   }
 
   // ── Sub-step A — Explain the Log Panel ──────────────────────
-  // Wait until 2–3 log lines appear in #bfs-log, then:
-  //   pause → highlight log → tooltip → 2 s → resume → sub-step B
+  //  Waits for ≥2 log entries in #bfs-log, then:
+  //    1. Pauses the simulation.
+  //    2. Glows + scrolls the log panel.
+  //    3. Shows tooltip with a [ Continue ] button.
+  //    4. Waits for user to click Continue (no timer).
+  //  On Continue: clears log highlight, advances to Sub-B.
+  //  Simulation stays paused.
   _simTourSubA() {
     if (!this._active) return;
 
     const logEl = document.getElementById('bfs-log');
     if (!logEl) {
-      // Log panel not in DOM yet; retry shortly
       this._schedule(() => this._simTourSubA(), 300);
       return;
     }
@@ -301,118 +327,115 @@ class OnboardingController {
     const trigger = () => {
       if (triggered || !this._active) return;
 
-      // Count real log-line entries (ignore the placeholder span)
       const lineCount = logEl.querySelectorAll('.log-line').length;
       if (lineCount < 2) return;
 
       triggered = true;
       this._disconnectLogObserver();
 
-      // ── Auto-pause ──────────────────────────────────────────
+      // 1. Pause the simulation
       this.simRunner.pause();
       const pauseBtn = document.getElementById('btn-pause');
       if (pauseBtn) pauseBtn.textContent = '▶ Resume';
 
-      // ── Highlight the log panel ──────────────────────────────
+      // 2. Glow the log panel
       this._highlightEl(logEl);
 
-      // ── Scroll log to newest entry ───────────────────────────
+      // 3. Scroll to newest entry
       logEl.scrollTop = logEl.scrollHeight;
 
-      // ── Show tooltip above the log panel ────────────────────
+      // 4. Show tooltip with Continue button.
+      //    onContinue fires when user clicks [ Continue ].
       this._showTooltipOnEl(
         logEl,
         '📋 Algorithm Steps Log',
-        'Each entry shows how the algorithm explores the grid — one node at a time.'
+        'These are the algorithm steps. Each entry shows how the algorithm explores the grid.',
+        () => {
+          // Continue clicked — clear log highlight, move to Sub-B
+          this._clearHighlights();
+          this._schedule(() => this._simTourSubB(), 300);
+        }
       );
-
-      // ── After 2 s: clear, resume, move to sub-step B ────────
-      this._schedule(() => {
-        this._hideTooltip();
-        this._clearHighlights();
-
-        // Resume simulation
-        this.simRunner.resume();
-        if (pauseBtn) pauseBtn.textContent = '⏸ Pause';
-
-        // Short gap before next hint so UI settles
-        this._schedule(() => this._simTourSubB(), 800);
-      }, 2200);
     };
 
-    // Watch for new child nodes in #bfs-log
+    // Observe #bfs-log for new .log-line children
     this._logObserver = new MutationObserver(trigger);
     this._logObserver.observe(logEl, { childList: true });
 
-    // Also fire immediately in case lines are already there
+    // Fire immediately in case entries already exist
     trigger();
   }
 
   // ── Sub-step B — Explain Speed Control ──────────────────────
-  // Highlight the speed slider, show tooltip, pulse the knob,
-  // fade out after 2 s, then proceed to sub-step C.
+  //  Sim is still paused.  Glows the speed slider and shows
+  //  a tooltip with a [ Continue ] button.  Waits for user click.
+  //  On Continue: clears slider highlight, advances to Sub-C.
   _simTourSubB() {
     if (!this._active) return;
 
     const sliderEl = document.getElementById('speed-slider');
     if (!sliderEl) {
-      this._schedule(() => this._simTourSubC(), 500);
+      // Speed panel not yet visible — skip gracefully
+      this._schedule(() => this._simTourSubC(), 400);
       return;
     }
 
-    // Pulse the slider element to draw the eye
     this._highlightEl(sliderEl);
 
     this._showTooltipOnEl(
       sliderEl,
       '⚡ Simulation Speed',
-      'Drag the slider to slow down or speed up. Slow it down to observe every step clearly.'
+      'You can control the simulation speed here. Slow it down to observe every step.',
+      () => {
+        // Continue clicked — clear slider highlight, move to Sub-C
+        this._clearHighlights();
+        this._schedule(() => this._simTourSubC(), 300);
+      }
     );
-
-    this._schedule(() => {
-      this._hideTooltip();
-      this._clearHighlights();
-      this._schedule(() => this._simTourSubC(), 600);
-    }, 2200);
   }
 
-  // ── Sub-step C — Explain Pause / Resume ─────────────────────
-  // Add beacon to Pause btn, show tooltip, auto-pause, wait 2 s,
-  // auto-resume, then go to 'complete'.
+  // ── Sub-step C — Explain Resume (user-driven) ───────────────
+  //  UNCHANGED from v4.
+  //  Sim is paused; btn-pause reads "▶ Resume".
+  //  Highlights btn-pause, shows tooltip "Press Resume to continue."
+  //  NO Continue button.  Waits for user to click Resume itself.
+  //  On click: cleans up, resumes sim, goes to 'complete'.
   _simTourSubC() {
     if (!this._active) return;
 
     const pauseBtn = document.getElementById('btn-pause');
     if (!pauseBtn) {
-      this._schedule(() => this._goToStep('complete'), 400);
+      this._goToStep('complete');
       return;
     }
 
+    this._highlightEl(pauseBtn);
     this._addBeacon('btn-pause');
 
+    // No onContinue — tooltip has no Continue button
     this._showTooltip(
       'btn-pause',
-      '⏸ Pause Anytime',
-      'Pause the simulation to study a snapshot. Press Resume to continue the exploration.'
+      '▶ Press Resume',
+      'Press Resume to continue the simulation.'
     );
 
-    // Auto-pause to demonstrate
-    this._schedule(() => {
-      this.simRunner.pause();
-      pauseBtn.textContent = '▶ Resume';
+    this._resumeClickHandler = () => {
+      if (!this._active) return;
 
-      // After 2 s auto-resume and clean up
-      this._schedule(() => {
-        this._hideTooltip();
-        this._removeBeacons();
+      pauseBtn.removeEventListener('click', this._resumeClickHandler);
+      this._resumeClickHandler = null;
 
-        this.simRunner.resume();
-        pauseBtn.textContent = '⏸ Pause';
+      this._hideTooltip();
+      this._removeBeacons();
+      this._clearHighlights();
 
-        // Small gap then move to complete step
-        this._schedule(() => this._goToStep('complete'), 700);
-      }, 2200);
-    }, 600);
+      // resume() is idempotent — safe even if controls.js also calls it
+      this.simRunner.resume();
+
+      this._schedule(() => this._goToStep('complete'), 600);
+    };
+
+    pauseBtn.addEventListener('click', this._resumeClickHandler);
   }
 
   // ══════════════════════════════════════════
@@ -424,27 +447,30 @@ class OnboardingController {
   }
 
   // ══════════════════════════════════════════
-  //  FIXED-POSITION TOOLTIP  (by element ID)
-  //
-  //  One tooltip at a time. Mounted to document.body with
-  //  position:fixed so it escapes any overflow:hidden ancestor.
-  //  pointer-events:none means it NEVER blocks button clicks.
-  //  Floating animation (onbTooltipFloat) defined in onboarding.css.
+  //  TOOLTIP — by element ID
+  //  Delegates to _showTooltipOnEl.
+  //  onContinue is passed through unchanged.
   // ══════════════════════════════════════════
 
-  _showTooltip(targetId, title, body) {
+  _showTooltip(targetId, title, body, onContinue = null) {
     const target = document.getElementById(targetId);
     if (!target) return;
-    this._showTooltipOnEl(target, title, body);
+    this._showTooltipOnEl(target, title, body, onContinue);
   }
 
   /**
-   * Like _showTooltip but accepts a raw DOM element.
-   * Used for log panels and other non-button targets.
+   * Show a floating tooltip anchored to any DOM element.
+   *
+   * @param {Element}       targetEl   — Element to anchor above.
+   * @param {string}        title      — Bold header text.
+   * @param {string}        body       — Description text.
+   * @param {function|null} onContinue — If provided, a [ Continue ]
+   *   button is rendered.  Clicking it calls onContinue() once
+   *   and hides the tooltip.  If null, no button is rendered and
+   *   pointer-events on the tooltip card remain none (v4 behaviour).
    */
-  _showTooltipOnEl(targetEl, title, body) {
+  _showTooltipOnEl(targetEl, title, body, onContinue = null) {
     this._hideTooltip();
-
     if (!targetEl) return;
 
     const tip = document.createElement('div');
@@ -452,22 +478,52 @@ class OnboardingController {
     tip.className = 'onb-tooltip';
     tip.setAttribute('role', 'tooltip');
     tip.setAttribute('aria-live', 'polite');
-    // pointer-events: none — tooltip NEVER blocks interaction
-    tip.style.pointerEvents = 'none';
+
+    // When there is no Continue button keep pointer-events:none
+    // so the tooltip card never blocks underlying UI.
+    // When there IS a Continue button we need pointer-events:auto
+    // on the card — the CSS :has() selector handles this, but we
+    // also set it inline as a reliable fallback for browsers
+    // (e.g. Firefox < 121) that don't yet support :has().
+    if (onContinue) {
+      tip.style.pointerEvents = 'auto';
+    } else {
+      tip.style.pointerEvents = 'none';
+    }
+
+    // Build HTML — Continue button rendered only when callback provided
+    const continueHtml = onContinue
+      ? `<button class="onb-tooltip-continue" type="button">Continue</button>`
+      : '';
 
     tip.innerHTML = `
       <div class="onb-tooltip-arrow"></div>
       <p class="onb-tooltip-title">${title}</p>
       <p class="onb-tooltip-body">${body}</p>
+      ${continueHtml}
     `;
 
     document.body.appendChild(tip);
-    this._tooltip = { el: tip, targetId: null, targetEl };
+    this._tooltip = { el: tip, targetEl };
 
-    // Position synchronously before first paint
-    this._positionTooltip(tip, targetEl);
+    // Use a larger height estimate when a Continue button is present
+    // so the tooltip positions far enough above the target.
+    this._positionTooltip(tip, targetEl, onContinue ? 120 : 88);
 
-    // Trigger entrance animation on next frame pair
+    // Wire the Continue button AFTER appending to DOM
+    if (onContinue) {
+      const btn = tip.querySelector('.onb-tooltip-continue');
+      if (btn) {
+        let fired = false;
+        btn.addEventListener('click', () => {
+          if (fired || !this._active) return;
+          fired = true;
+          this._hideTooltip();
+          onContinue();
+        }, { once: true });
+      }
+    }
+
     requestAnimationFrame(() => {
       requestAnimationFrame(() => tip.classList.add('onb-tooltip-visible'));
     });
@@ -475,39 +531,35 @@ class OnboardingController {
 
   _hideTooltip() {
     if (!this._tooltip) return;
-    const tip = this._tooltip.el;
+    const tip     = this._tooltip.el;
     this._tooltip = null;
     tip.classList.remove('onb-tooltip-visible');
     tip.classList.add('onb-tooltip-exit');
-    // Remove after exit transition (200ms)
     setTimeout(() => tip.remove(), 250);
   }
 
   /**
-   * Position the tooltip above the target element using fixed coords.
-   * The tooltip's bottom edge sits GAP px above the element's top edge.
-   * Horizontally centred over the element, clamped within viewport.
+   * Position the tooltip above (or below if off-screen) the target.
+   *
+   * @param {Element} tipEl      — The tooltip DOM node.
+   * @param {Element} targetEl   — Element to anchor to.
+   * @param {number}  tooltipH   — Estimated tooltip height in px.
+   *   Defaults to 88 (no button); pass 120 when Continue is present.
    */
-  _positionTooltip(tipEl, targetEl) {
-    const TOOLTIP_W = 280;   // matches CSS width
-    const TOOLTIP_H = 88;    // approximate height (title + body)
-    const ARROW_H   = 9;     // half the arrow square diagonal
-    const GAP       = 10;    // gap between tooltip bottom and element top
+  _positionTooltip(tipEl, targetEl, tooltipH = 88) {
+    const TOOLTIP_W = 280;
+    const ARROW_H   = 9;
+    const GAP       = 10;
 
     const rect = targetEl.getBoundingClientRect();
 
-    // Horizontal: centre over element, clamp to viewport
     let left = rect.left + rect.width / 2 - TOOLTIP_W / 2;
     left = Math.max(12, Math.min(left, window.innerWidth - TOOLTIP_W - 12));
 
-    // Vertical: above element
-    let top = rect.top - TOOLTIP_H - ARROW_H - GAP;
-
-    // If tooltip would go off-screen top, flip below instead
+    let top = rect.top - tooltipH - ARROW_H - GAP;
     if (top < 8) {
+      // Flip below the element when there isn't enough room above
       top = rect.bottom + ARROW_H + GAP;
-      // Move arrow to top instead of bottom by swapping border sides
-      // (handled gracefully by the CSS arrow — it still looks fine)
     }
 
     tipEl.style.position = 'fixed';
@@ -516,12 +568,12 @@ class OnboardingController {
     tipEl.style.top      = `${Math.round(top)}px`;
     tipEl.style.zIndex   = '9500';
 
-    // Store for scroll/resize reposition
-    tipEl._targetEl  = targetEl;
-    tipEl._tooltipW  = TOOLTIP_W;
-    tipEl._tooltipH  = TOOLTIP_H;
-    tipEl._arrowH    = ARROW_H;
-    tipEl._gap       = GAP;
+    // Cache for scroll / resize reposition
+    tipEl._targetEl = targetEl;
+    tipEl._tooltipW = TOOLTIP_W;
+    tipEl._tooltipH = tooltipH;
+    tipEl._arrowH   = ARROW_H;
+    tipEl._gap      = GAP;
   }
 
   _repositionTooltip() {
@@ -530,10 +582,10 @@ class OnboardingController {
     if (!el._targetEl) return;
 
     const rect   = el._targetEl.getBoundingClientRect();
-    const W      = el._tooltipW  || 280;
-    const H      = el._tooltipH  || 88;
-    const arrowH = el._arrowH    || 9;
-    const gap    = el._gap       || 10;
+    const W      = el._tooltipW || 280;
+    const H      = el._tooltipH || 88;
+    const arrowH = el._arrowH   || 9;
+    const gap    = el._gap      || 10;
 
     let left = rect.left + rect.width / 2 - W / 2;
     left = Math.max(12, Math.min(left, window.innerWidth - W - 12));
@@ -545,18 +597,13 @@ class OnboardingController {
 
   // ══════════════════════════════════════════
   //  HIGHLIGHT RING
-  //
-  //  Adds a subtle inline box-shadow glow to any element to draw
-  //  the eye without changing layout, dimensions, or overflow.
-  //  Safe to apply to log containers and sliders alike.
   // ══════════════════════════════════════════
 
   _highlightEl(el) {
     if (!el) return;
-    // Store original so we can cleanly restore it
-    el._onbOrigBoxShadow = el.style.boxShadow || '';
+    el._onbOrigBoxShadow  = el.style.boxShadow  || '';
     el._onbOrigTransition = el.style.transition || '';
-    el._onbOrigOutline = el.style.outline || '';
+    el._onbOrigOutline    = el.style.outline    || '';
 
     el.style.transition = 'box-shadow 0.3s ease, outline 0.3s ease';
     el.style.boxShadow  =
@@ -579,7 +626,7 @@ class OnboardingController {
   }
 
   // ══════════════════════════════════════════
-  //  LOG OBSERVER CLEANUP
+  //  LOG OBSERVER
   // ══════════════════════════════════════════
 
   _disconnectLogObserver() {
@@ -638,13 +685,12 @@ class OnboardingController {
   }
 
   // ══════════════════════════════════════════
-  //  BEACON — pulsing ring appended to button
+  //  BEACON
   // ══════════════════════════════════════════
 
   _addBeacon(btnId) {
     const btn = document.getElementById(btnId);
     if (!btn || btn.querySelector('.onb-beacon')) return;
-    // Allow the ring to overflow the button box
     btn.style.overflow = 'visible';
     const beacon = document.createElement('span');
     beacon.className = 'onb-beacon';
@@ -703,7 +749,7 @@ class OnboardingController {
   }
 
   // ══════════════════════════════════════════
-  //  BUTTON PULSE — mirrors Controls._pulseOnce()
+  //  BUTTON PULSE
   // ══════════════════════════════════════════
 
   _pulseButton(btnId) {
@@ -717,8 +763,6 @@ class OnboardingController {
     setTimeout(cleanup, 900);
   }
 
-  // ── Sync the active-mode button highlight ────────────────────
-  // Mirrors Controls._highlightMode() without importing Controls
   _syncModeHighlight(activeId) {
     ['btn-wall', 'btn-start', 'btn-end'].forEach(id => {
       const el = document.getElementById(id);

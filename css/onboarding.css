@@ -1,22 +1,21 @@
 /* ══════════════════════════════════════════════════════════════
    DS Academy – Guided Onboarding Styles  (css/onboarding.css)
-   v2 — refined per UX feedback
+   v3 — Continue button added to sim-tour tooltips
 
-   CHANGES FROM v1:
-   1. .onb-callout removed — replaced by .onb-tooltip which uses
-      position:fixed (anchored via JS getBoundingClientRect) so it
-      always appears ABOVE the target, never clips inside
-      overflow:hidden, and never blocks button interaction.
-   2. pointer-events:none on the entire tooltip element.
-   3. onbTooltipFloat keyframe — gentle 4px vertical bob, 3s loop,
-      ease-in-out. Applied when .onb-tooltip-visible is added.
-   4. Soft cyan glow on tooltip to attract eye without intruding.
+   CHANGES FROM v2:
+   1. .onb-tooltip-continue — Continue button rendered inside
+      Sub-A and Sub-B tooltips.  Styled to match the existing
+      .onb-skip-btn design language (monospace, border, accent).
+   2. .onb-tooltip:has(.onb-tooltip-continue) — lifts
+      pointer-events to auto on the card so the button is
+      clickable, while child text nodes remain non-interactive.
+      Falls back gracefully in browsers without :has() support
+      (button still visible; JS onclick still fires).
+   3. TOOLTIP_H constant in _positionTooltip raised to 120 for
+      tooltips that include a Continue button — handled in JS,
+      not CSS.
 
-   Design language:
-   - All colours from style.css CSS variables — no new tokens.
-   - House easing: cubic-bezier(0.16,1,0.3,1) for entrances.
-   - House bouncy: cubic-bezier(0.34,1.56,0.64,1) for beacon ring.
-   - Monospace throughout: var(--font-mono) = JetBrains Mono.
+   Everything else is UNCHANGED from v2.
 ══════════════════════════════════════════════════════════════ */
 
 /* ══════════════════════════════════════════
@@ -126,11 +125,15 @@
 }
 
 /* ══════════════════════════════════════════
-   FLOATING TOOLTIP  (Improvement 1, 2, 3)
+   FLOATING TOOLTIP
    ─────────────────────────────────────────
    Position: fixed — anchored via JS getBoundingClientRect().
    Appears ABOVE target button, never blocks interaction.
    pointer-events: none is set inline in JS but reinforced here.
+
+   Tooltips that contain a .onb-tooltip-continue button override
+   pointer-events to auto so the button is clickable.  All other
+   child elements keep pointer-events:none individually.
 
    Floating animation:
    - translateY oscillates 0px ↔ -4px
@@ -180,6 +183,23 @@
     transform 0.30s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+/* ── When tooltip contains a Continue button, lift pointer-events
+   so the button receives clicks.  The !important on the parent
+   would normally block this — we override it on the card itself
+   via a more-specific selector, then pin non-interactive children
+   back to pointer-events:none individually below. ── */
+.onb-tooltip:has(.onb-tooltip-continue) {
+  /* override the !important on .onb-tooltip */
+  pointer-events: auto !important;
+}
+
+/* Keep non-interactive child elements from swallowing clicks */
+.onb-tooltip:has(.onb-tooltip-continue) .onb-tooltip-arrow,
+.onb-tooltip:has(.onb-tooltip-continue) .onb-tooltip-title,
+.onb-tooltip:has(.onb-tooltip-continue) .onb-tooltip-body {
+  pointer-events: none;
+}
+
 /* Top-edge cyan gradient line */
 .onb-tooltip::before {
   content: '';
@@ -215,7 +235,7 @@
     transform 0.20s ease;
 }
 
-/* ── Floating keyframe (Improvement 3) ──────────────────────────
+/* ── Floating keyframe ───────────────────────────────────────────
    Amplitude: 4px  Duration: 3s  Easing: ease-in-out loop
    Subtle enough to attract the eye without feeling frantic.
    The glow breathes in sync with the float for a premium feel.
@@ -270,6 +290,56 @@
   line-height: 1.65;
   color: rgba(148, 163, 184, 0.82);
   margin: 0;
+}
+
+/* ══════════════════════════════════════════
+   CONTINUE BUTTON  (v3 addition)
+   ─────────────────────────────────────────
+   Rendered inside Sub-A and Sub-B tooltips.
+   Sits below .onb-tooltip-body with an 10px top gap.
+   Styled to match .onb-skip-btn but uses the accent colour
+   to make it visually primary.
+   pointer-events: auto — overrides the parent none so it
+   actually receives clicks.
+══════════════════════════════════════════ */
+
+.onb-tooltip-continue {
+  /* Reset any inherited pointer-events:none from parent */
+  pointer-events: auto !important;
+  cursor: pointer;
+
+  display: block;
+  margin-top: 10px;
+  width: 100%;
+
+  background: rgba(0, 229, 255, 0.08);
+  border: 1px solid rgba(0, 229, 255, 0.35);
+  border-radius: 2px;
+  padding: 5px 0;
+
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.20em;
+  text-transform: uppercase;
+  text-align: center;
+  color: var(--accent);
+
+  transition:
+    background     0.18s ease,
+    border-color   0.18s ease,
+    color          0.18s ease,
+    box-shadow     0.18s ease;
+}
+
+.onb-tooltip-continue:hover {
+  background: rgba(0, 229, 255, 0.15);
+  border-color: rgba(0, 229, 255, 0.60);
+  box-shadow: 0 0 10px rgba(0, 229, 255, 0.20);
+}
+
+.onb-tooltip-continue:active {
+  background: rgba(0, 229, 255, 0.22);
 }
 
 /* ══════════════════════════════════════════
