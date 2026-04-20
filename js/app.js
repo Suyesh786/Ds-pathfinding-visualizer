@@ -354,11 +354,3 @@ function createSimState(grid) {
 
   return { run, pause, resume, reset, isPaused: () => _paused };
 }
-
-// ── setStatus (global helper for onboarding.js access) ────────
-function setStatus(text, state) {
-  const dot  = document.getElementById('status-dot');
-  const span = document.getElementById('status-text');
-  if (dot)  dot.className    = `status-dot ${state}`;
-  if (span) span.textContent = text;
-}
