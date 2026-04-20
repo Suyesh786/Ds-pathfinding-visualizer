@@ -1,44 +1,43 @@
 // ══════════════════════════════════════════════════════════════
 //  DS Academy – Guided Onboarding System  (js/onboarding.js)
+//  v2 — refined per UX feedback
 //
-//  Integrates seamlessly with the existing animation system:
-//  - Reuses showToast(), sleep(), scrollTo() from helpers.js
-//  - Reuses .btn-glow / _pulseOnce pattern from controls.js
-//  - Reuses .cell-visited / .cell-path / .cell-wall-anim classes
-//  - Reuses .fade-slide-up, .insight-appear from animations.css
-//  - Reuses CSS variables from style.css for all colours/fonts
-//  - Ghost grid BFS mirrors the landing scene's lc-visited pattern
+//  CHANGES FROM v1:
+//  1. Tooltip placement — fixed-position anchoring via
+//     getBoundingClientRect() so tooltips always appear ABOVE the
+//     target button, never block interaction, pointer-events:none.
+//  2. Correct tutorial flow:
+//       highlight-start → (user places start)
+//       → highlight-end → (user places end)
+//       → wall-hint (2s auto) → run-hint → watch-sim → complete
+//  3. Floating tooltip animation — gentle translateY bob (4px, 3s),
+//     soft cyan glow. Defined via onbTooltipFloat in onboarding.css.
+//  4. Run button layout — fixed-position tooltips escape
+//     builder-section's overflow:hidden entirely.
 //
-//  Entry point: startGuidedOnboarding(grid, controls, simRunner)
-//  Called from app.js when user picks "Guided Mode".
+//  Reuses without modification:
+//  - showToast() from helpers.js
+//  - .btn-glow / btnGlowPulse from animations.css + style.css
+//  - CSS variables (--accent, --bg-card, --border, --font-mono…)
+//  - _pulseOnce() pattern from controls.js
 // ══════════════════════════════════════════════════════════════
 
-import { showToast, sleep, scrollTo } from './utils/helpers.js';
+import { showToast } from './utils/helpers.js';
 
-// ── Step definitions ──────────────────────────────────────────
-// Each step has: id, delay before next auto-advance (0 = manual),
-// setup() runs when step begins, teardown() runs when it ends.
-
+// ── Step sequence ─────────────────────────────────────────────
 const ONBOARDING_STEPS = [
-  'ghost-grid',     // Step 1 — Ghost BFS demo on the real grid
-  'highlight-wall', // Step 2 — Highlight wall button + toast
-  'highlight-nodes',// Step 3 — Highlight start/end buttons + toast
-  'place-nodes',    // Step 4 — Wait for user to place both nodes
-  'run-hint',       // Step 5 — Run button pulse + explanation callout
-  'watch-sim',      // Step 6 — Let simulation run; show mid-sim hint
-  'complete',       // Step 7 — Post-simulation insight banner
+  'highlight-start', // Step 1 — glow Start btn, tooltip above it
+  'highlight-end',   // Step 2 — glow End btn, tooltip above it
+  'wall-hint',       // Step 3 — tooltip above wall btn, 2s then auto
+  'run-hint',        // Step 4 — beacon + tooltip above Run btn
+  'watch-sim',       // Step 5 — mid-sim toasts
+  'complete',        // Step 6 — completion banner
 ];
 
 // ══════════════════════════════════════════════════════════════
 //  PUBLIC ENTRY POINT
 // ══════════════════════════════════════════════════════════════
 
-/**
- * startGuidedOnboarding
- * @param {Grid}     grid      – the main Grid instance from app.js
- * @param {Controls} controls  – Controls instance
- * @param {object}   simRunner – { run, pause, resume, reset, isPaused }
- */
 export function startGuidedOnboarding(grid, controls, simRunner) {
   const ob = new OnboardingController(grid, controls, simRunner);
   ob.start();
@@ -46,7 +45,7 @@ export function startGuidedOnboarding(grid, controls, simRunner) {
 }
 
 // ══════════════════════════════════════════════════════════════
-//  ONBOARDING CONTROLLER
+//  CONTROLLER
 // ══════════════════════════════════════════════════════════════
 
 class OnboardingController {
@@ -55,23 +54,24 @@ class OnboardingController {
     this.controls  = controls;
     this.simRunner = simRunner;
 
-    this._stepIdx   = -1;
-    this._active    = true;
-    this._timers    = [];
-    this._beacons   = [];    // DOM elements to clean up
-    this._callouts  = [];    // DOM elements to clean up
-    this._ghostDone = false;
+    this._stepIdx      = -1;
+    this._active       = true;
+    this._timers       = [];
+    this._beacons      = [];
+    this._tooltip      = null;   // single floating tooltip at a time
+    this._startPlaced  = false;
+    this._endPlaced    = false;
+    this._nodesReady   = false;
 
-    // Track node placement progress
-    this._startPlaced = false;
-    this._endPlaced   = false;
-    this._nodesReady  = false;
+    // Keep tooltip anchored on scroll/resize
+    this._repositionBound = () => this._repositionTooltip();
+    window.addEventListener('scroll', this._repositionBound, { passive: true });
+    window.addEventListener('resize', this._repositionBound, { passive: true });
 
-    // Bind node-placement observer
     this._patchGridForOnboarding();
   }
 
-  // ── Timer helpers (mirrors landing.js pattern) ────────────────
+  // ── Timer helpers ─────────────────────────────────────────────
   _schedule(fn, delay) {
     const id = setTimeout(() => { if (this._active) fn(); }, delay);
     this._timers.push(id);
@@ -82,8 +82,7 @@ class OnboardingController {
     this._timers.length = 0;
   }
 
-  // ── Observe node placement via grid method patching ───────────
-  // Mirrors the patchGridCallbacks() pattern from app.js
+  // ── Patch grid to observe node placement ──────────────────────
   _patchGridForOnboarding() {
     const origStart = this.grid._placeStart.bind(this.grid);
     const origEnd   = this.grid._placeEnd.bind(this.grid);
@@ -91,35 +90,37 @@ class OnboardingController {
 
     this.grid._placeStart = function(r, c, s) {
       origStart(r, c, s);
-      self._startPlaced = true;
-      self._onNodePlaced();
+      if (!self._startPlaced) {
+        self._startPlaced = true;
+        self._onStartPlaced();
+      }
     };
     this.grid._placeEnd = function(r, c, s) {
       origEnd(r, c, s);
-      self._endPlaced = true;
-      self._onNodePlaced();
+      if (!self._endPlaced) {
+        self._endPlaced = true;
+        self._onEndPlaced();
+      }
     };
   }
 
-  _onNodePlaced() {
-    if (this._startPlaced && this._endPlaced && !this._nodesReady) {
-      this._nodesReady = true;
-      // Both nodes placed — advance to run-hint step
-      this._schedule(() => this._goToStep('run-hint'), 400);
-    } else if (this._startPlaced && !this._endPlaced && this._stepIdx === this._stepIdxOf('place-nodes')) {
-      // Start placed, waiting for end
-      this._schedule(() => {
-        showToast('Start placed! Now set your End node 🔴', '🟠', 3000);
-      }, 300);
-    } else if (this._endPlaced && !this._startPlaced && this._stepIdx === this._stepIdxOf('place-nodes')) {
-      this._schedule(() => {
-        showToast('End placed! Now set your Start node 🟠', '🔴', 3000);
-      }, 300);
-    }
+  _onStartPlaced() {
+    if (!this._active) return;
+    this._hideTooltip();
+    this._removeBeacons();
+    this._clearTimers();
+    this._schedule(() => this._goToStep('highlight-end'), 350);
   }
 
-  _stepIdxOf(id) {
-    return ONBOARDING_STEPS.indexOf(id);
+  _onEndPlaced() {
+    if (!this._active) return;
+    if (this._startPlaced && !this._nodesReady) {
+      this._nodesReady = true;
+      this._hideTooltip();
+      this._removeBeacons();
+      this._clearTimers();
+      this._schedule(() => this._goToStep('wall-hint'), 350);
+    }
   }
 
   // ══════════════════════════════════════════
@@ -128,341 +129,249 @@ class OnboardingController {
 
   start() {
     this._showProgressBar();
-    this._goToStep('ghost-grid');
+    showToast('Guided Mode — follow the steps to get started', '🎓', 4000);
+    // Small delay so the app fade-in settles before we render the tooltip
+    this._schedule(() => this._goToStep('highlight-start'), 900);
   }
 
   stop() {
     this._active = false;
     this._clearTimers();
     this._removeBeacons();
-    this._removeCallouts();
+    this._hideTooltip();
     this._hideProgressBar();
-    this._destroyGhostGrid();
+    window.removeEventListener('scroll', this._repositionBound);
+    window.removeEventListener('resize', this._repositionBound);
   }
 
   _goToStep(stepId) {
     if (!this._active) return;
-    const idx = this._stepIdxOf(stepId);
+    const idx = ONBOARDING_STEPS.indexOf(stepId);
     if (idx === -1) return;
     this._stepIdx = idx;
     this._updateProgressBar(idx);
     this._runStep(stepId);
   }
 
-  // ══════════════════════════════════════════
-  //  STEP RUNNER
-  // ══════════════════════════════════════════
-
   _runStep(stepId) {
     switch (stepId) {
-      case 'ghost-grid':     return this._stepGhostGrid();
-      case 'highlight-wall': return this._stepHighlightWall();
-      case 'highlight-nodes':return this._stepHighlightNodes();
-      case 'place-nodes':    return this._stepPlaceNodes();
-      case 'run-hint':       return this._stepRunHint();
-      case 'watch-sim':      return this._stepWatchSim();
-      case 'complete':       return this._stepComplete();
+      case 'highlight-start': return this._stepHighlightStart();
+      case 'highlight-end':   return this._stepHighlightEnd();
+      case 'wall-hint':       return this._stepWallHint();
+      case 'run-hint':        return this._stepRunHint();
+      case 'watch-sim':       return this._stepWatchSim();
+      case 'complete':        return this._stepComplete();
     }
   }
 
   // ══════════════════════════════════════════
-  //  STEP 1 — Ghost BFS demo
+  //  STEP 1 — Highlight Start button
   // ══════════════════════════════════════════
-  _stepGhostGrid() {
-    const grid = this.grid;
-    if (!grid.container) return;
+  _stepHighlightStart() {
+    // Switch grid to start-placement mode so the user's next click works
+    this.grid.setMode('start');
+    this._syncModeHighlight('btn-start');
 
-    const rows = grid.size;
-    const cols = grid.size;
+    this._addBeacon('btn-start');
+    this._pulseButton('btn-start');
 
-    // Show a contextual callout above the grid
-    this._showCallout(
-      'grid-container',
-      'above',
-      '🔍 Watch BFS explore',
-      'Breadth-first search expands outward level by level — like a wave from the origin.',
-      'onb-callout-ghost'
+    this._showTooltip(
+      'btn-start',
+      '🟠 Place your Start node',
+      'Click anywhere on the grid to set the starting point for the algorithm.'
     );
-
-    showToast('Guided Mode — watch the algorithm explore', '🎓', 4000);
-
-    // BFS order from center
-    const startR = Math.floor(rows / 2);
-    const startC = Math.floor(cols / 2);
-    const order  = this._bfsOrderOnGrid(startR, startC, rows, cols);
-
-    // We'll visit up to half the grid cells as a "demo"
-    const cap    = Math.min(Math.floor(rows * cols * 0.55), order.length);
-    const capped = order.slice(0, cap);
-
-    // Animate visits with the existing .cell-visited / .cell-path classes
-    // using the same timing pattern as CellAnimator in animateCells.js
-    const GHOST_DELAY = 18; // ms per cell (fast but visible)
-    const visitedEls  = [];
-
-    capped.forEach(([r, c], i) => {
-      this._schedule(() => {
-        const el = grid._getEl(r, c);
-        if (!el) return;
-        const state = grid.cells[r][c];
-        if (state !== 'wall' && state !== 'start' && state !== 'end') {
-          el.classList.add('cell-visited', 'onb-ghost');
-          el.style.setProperty('--ghost-alpha', '0.45');
-          visitedEls.push({ el, r, c });
-        }
-      }, i * GHOST_DELAY);
-    });
-
-    const totalGhostMs = cap * GHOST_DELAY;
-
-    // After visits, animate a "path" trace back to center as a demo
-    this._schedule(() => {
-      this._animateGhostPath(grid, startR, startC, rows, cols, visitedEls);
-    }, totalGhostMs + 200);
-
-    // After ghost done, fade it out and advance
-    this._schedule(() => {
-      this._clearGhostCells(grid);
-      this._removeCallouts();
-      this._ghostDone = true;
-      this._schedule(() => this._goToStep('highlight-wall'), 500);
-    }, totalGhostMs + 200 + (Math.min(cols, rows) * 30) + 800);
-  }
-
-  _animateGhostPath(grid, startR, startC, rows, cols, visitedEls) {
-    // Spiral a "path" from visited cells back toward center
-    // This is a simplified visual trace — not a real path, just aesthetics
-    const pathLen = Math.min(12, Math.floor(Math.min(rows, cols) * 0.5));
-    const path    = [];
-    let r = startR + Math.floor(rows * 0.15);
-    let c = startC + Math.floor(cols * 0.15);
-
-    for (let i = 0; i < pathLen; i++) {
-      r = Math.max(0, Math.min(rows - 1, r - 1));
-      c = Math.max(0, Math.min(cols - 1, c - (i % 2 === 0 ? 1 : 0)));
-      path.push([r, c]);
-    }
-
-    path.forEach(([pr, pc], i) => {
-      this._schedule(() => {
-        const el = grid._getEl(pr, pc);
-        if (!el) return;
-        const state = grid.cells[pr][pc];
-        if (state !== 'wall' && state !== 'start' && state !== 'end') {
-          el.classList.remove('cell-visited', 'onb-ghost');
-          el.classList.add('cell-path', 'onb-ghost');
-          el.style.animationDelay = `${i * 0.03}s`;
-        }
-      }, i * 30);
-    });
-  }
-
-  _clearGhostCells(grid) {
-    // Fade out ghost cells gracefully using existing transition
-    const ghosts = grid.container.querySelectorAll('.onb-ghost');
-    ghosts.forEach((el, i) => {
-      setTimeout(() => {
-        el.style.transition = 'opacity 0.3s ease, background 0.3s ease';
-        el.style.opacity    = '0';
-        setTimeout(() => {
-          el.classList.remove('cell-visited', 'cell-path', 'onb-ghost');
-          el.style.opacity    = '';
-          el.style.transition = '';
-          el.style.animationDelay = '';
-        }, 320);
-      }, i * 2); // stagger the fade-out slightly
-    });
-  }
-
-  _destroyGhostGrid() {
-    const ghosts = document.querySelectorAll('.onb-ghost');
-    ghosts.forEach(el => {
-      el.classList.remove('cell-visited', 'cell-path', 'onb-ghost');
-      el.style.opacity = '';
-      el.style.transition = '';
-    });
-  }
-
-  // BFS order generator (mirrors landing.js bfsOrder)
-  _bfsOrderOnGrid(startR, startC, rows, cols) {
-    const visited = new Set([`${startR},${startC}`]);
-    const queue   = [[startR, startC]];
-    const order   = [];
-    const dirs    = [[0,1],[1,0],[0,-1],[-1,0]];
-
-    while (queue.length) {
-      const [r, c] = queue.shift();
-      order.push([r, c]);
-      for (const [dr, dc] of dirs) {
-        const nr = r + dr, nc = c + dc;
-        const key = `${nr},${nc}`;
-        if (nr >= 0 && nr < rows && nc >= 0 && nc < cols && !visited.has(key)) {
-          visited.add(key);
-          queue.push([nr, nc]);
-        }
-      }
-    }
-    return order;
   }
 
   // ══════════════════════════════════════════
-  //  STEP 2 — Highlight wall button
+  //  STEP 2 — Highlight End button
   // ══════════════════════════════════════════
-  _stepHighlightWall() {
-    this._removeBeacons();
+  _stepHighlightEnd() {
+    this.grid.setMode('end');
+    this._syncModeHighlight('btn-end');
+
+    this._addBeacon('btn-end');
+    this._pulseButton('btn-end');
+
+    this._showTooltip(
+      'btn-end',
+      '🔴 Place your End node',
+      'Now click a different grid cell to set the destination.'
+    );
+  }
+
+  // ══════════════════════════════════════════
+  //  STEP 3 — Wall hint (2 s then auto-advance)
+  // ══════════════════════════════════════════
+  _stepWallHint() {
+    this.grid.setMode('wall');
+    this._syncModeHighlight('btn-wall');
 
     this._addBeacon('btn-wall');
-    this._showCallout(
+
+    this._showTooltip(
       'btn-wall',
-      'below',
-      '🧱 Draw walls',
-      'Click and drag on the grid to place walls. Walls are impassable barriers.',
-      'onb-callout-wall'
+      '🧱 Draw walls (optional)',
+      'Click and drag on the grid to create obstacles. Walls are optional — skip ahead anytime.'
     );
 
-    showToast('Click & drag on the grid to draw walls', '🧱', 4000);
-
-    // Pulse the wall button using the same _pulseOnce pattern
-    this._pulseButton('btn-wall');
-
-    // Auto-advance after delay (or user can click the button)
-    const wallBtn = document.getElementById('btn-wall');
-    const onWallClick = () => {
-      wallBtn?.removeEventListener('click', onWallClick);
-      this._removeCallouts();
-      this._removeBeacons();
-      this._schedule(() => this._goToStep('highlight-nodes'), 600);
-    };
-    wallBtn?.addEventListener('click', onWallClick);
-
-    // Auto-advance after 5s even if user doesn't click
+    // Auto-advance after 2 seconds regardless of interaction
     this._schedule(() => {
-      wallBtn?.removeEventListener('click', onWallClick);
-      this._removeCallouts();
+      this._hideTooltip();
       this._removeBeacons();
-      this._goToStep('highlight-nodes');
-    }, 5000);
+      this._goToStep('run-hint');
+    }, 2000);
   }
 
   // ══════════════════════════════════════════
-  //  STEP 3 — Highlight start/end buttons
-  // ══════════════════════════════════════════
-  _stepHighlightNodes() {
-    this._removeBeacons();
-    this._removeCallouts();
-
-    this._addBeacon('btn-start');
-    this._addBeacon('btn-end');
-
-    this._showCallout(
-      'btn-start',
-      'below',
-      '🟠 Place Start & End nodes',
-      'Select a mode then click a grid cell. The algorithm travels from Start → End.',
-      'onb-callout-nodes'
-    );
-
-    showToast('Place your Start 🟠 and End 🔴 nodes on the grid', '📍', 4500);
-
-    this._pulseButton('btn-start');
-    this._schedule(() => this._pulseButton('btn-end'), 400);
-
-    // Advance to place-nodes step
-    this._schedule(() => {
-      this._removeBeacons();
-      this._removeCallouts();
-      this._goToStep('place-nodes');
-    }, 1200);
-  }
-
-  // ══════════════════════════════════════════
-  //  STEP 4 — Wait for node placement
-  // ══════════════════════════════════════════
-  _stepPlaceNodes() {
-    // If already placed before this step (race condition), skip forward
-    if (this._nodesReady) {
-      this._schedule(() => this._goToStep('run-hint'), 200);
-      return;
-    }
-
-    this._addBeacon('btn-start');
-    this._addBeacon('btn-end');
-
-    // Show persistent hint — will be dismissed when both nodes placed
-    showToast('Set Start & End nodes to continue', '📍', 6000);
-
-    // Pulse both node buttons every 4s until placed
-    const pulseInterval = setInterval(() => {
-      if (!this._active || this._nodesReady) {
-        clearInterval(pulseInterval);
-        return;
-      }
-      this._pulseButton('btn-start');
-      this._schedule(() => this._pulseButton('btn-end'), 350);
-    }, 4000);
-
-    this._timers.push(pulseInterval); // ensure cleanup
-  }
-
-  // ══════════════════════════════════════════
-  //  STEP 5 — Run button hint
+  //  STEP 4 — Run button hint
   // ══════════════════════════════════════════
   _stepRunHint() {
-    this._removeBeacons();
-    this._removeCallouts();
+    this._addBeacon('btn-run');
+    this._pulseButton('btn-run');
 
-    showToast('Both nodes set! Ready to run the simulation ▶', '✅', 3500);
+    this._showTooltip(
+      'btn-run',
+      '▶ Run the simulation',
+      "BFS and DFS will race side-by-side. Watch how differently they explore the grid!"
+    );
 
-    this._schedule(() => {
-      this._addBeacon('btn-run');
-      this._pulseButton('btn-run');
-
-      this._showCallout(
-        'btn-run',
-        'above',
-        '▶ Run the simulation',
-        'BFS and DFS will race side-by-side. Watch how differently they explore!',
-        'onb-callout-run'
-      );
-
-      // Listen for run button click to advance
-      const runBtn = document.getElementById('btn-run');
-      const onRun = () => {
-        runBtn?.removeEventListener('click', onRun);
-        this._removeBeacons();
-        this._removeCallouts();
-        this._schedule(() => this._goToStep('watch-sim'), 1500);
-      };
-      runBtn?.addEventListener('click', onRun);
-    }, 800);
+    const runBtn = document.getElementById('btn-run');
+    const onRun = () => {
+      runBtn?.removeEventListener('click', onRun);
+      this._hideTooltip();
+      this._removeBeacons();
+      this._schedule(() => this._goToStep('watch-sim'), 1200);
+    };
+    runBtn?.addEventListener('click', onRun);
   }
 
   // ══════════════════════════════════════════
-  //  STEP 6 — Watch sim (mid-sim hints)
+  //  STEP 5 — Watch sim mid-hints
   // ══════════════════════════════════════════
   _stepWatchSim() {
-    showToast('BFS explores level by level — DFS dives deep first', '🔬', 5000);
+    showToast('BFS expands like a wave · DFS dives deep first', '🔬', 5000);
 
     this._schedule(() => {
       showToast('BFS guarantees the shortest path · DFS does not', '💡', 5000);
     }, 5500);
 
     this._schedule(() => {
-      showToast('Watch the visited counts — notice the difference?', '👀', 5000);
+      showToast('Compare the visited counts in each card', '👀', 4500);
     }, 11000);
 
-    // After sim likely completes, advance to complete step
-    this._schedule(() => {
-      this._goToStep('complete');
-    }, 18000);
+    this._schedule(() => this._goToStep('complete'), 18000);
   }
 
   // ══════════════════════════════════════════
-  //  STEP 7 — Complete
+  //  STEP 6 — Complete
   // ══════════════════════════════════════════
   _stepComplete() {
     this._showCompletionBanner();
     this._hideProgressBar();
+  }
+
+  // ══════════════════════════════════════════
+  //  FIXED-POSITION TOOLTIP
+  //
+  //  One tooltip at a time. Mounted to document.body with
+  //  position:fixed so it escapes any overflow:hidden ancestor.
+  //  pointer-events:none means it NEVER blocks button clicks.
+  //  Floating animation (onbTooltipFloat) defined in onboarding.css.
+  // ══════════════════════════════════════════
+
+  _showTooltip(targetId, title, body) {
+    this._hideTooltip();
+
+    const target = document.getElementById(targetId);
+    if (!target) return;
+
+    const tip = document.createElement('div');
+    tip.id        = 'onb-tooltip';
+    tip.className = 'onb-tooltip';
+    tip.setAttribute('role', 'tooltip');
+    tip.setAttribute('aria-live', 'polite');
+    // pointer-events: none — tooltip NEVER blocks button interaction
+    tip.style.pointerEvents = 'none';
+
+    tip.innerHTML = `
+      <div class="onb-tooltip-arrow"></div>
+      <p class="onb-tooltip-title">${title}</p>
+      <p class="onb-tooltip-body">${body}</p>
+    `;
+
+    document.body.appendChild(tip);
+    this._tooltip = { el: tip, targetId, targetEl: target };
+
+    // Position synchronously before first paint
+    this._positionTooltip(tip, target);
+
+    // Trigger entrance animation on next frame pair
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => tip.classList.add('onb-tooltip-visible'));
+    });
+  }
+
+  _hideTooltip() {
+    if (!this._tooltip) return;
+    const tip = this._tooltip.el;
+    this._tooltip = null;
+    tip.classList.remove('onb-tooltip-visible');
+    tip.classList.add('onb-tooltip-exit');
+    // Remove after exit transition (200ms)
+    setTimeout(() => tip.remove(), 250);
+  }
+
+  /**
+   * Position the tooltip above the target button using fixed coords.
+   * The tooltip's bottom edge sits GAP px above the button's top edge.
+   * Horizontally centred over the button, clamped within viewport.
+   */
+  _positionTooltip(tipEl, targetEl) {
+    const TOOLTIP_W = 280;   // matches CSS width
+    const TOOLTIP_H = 88;    // approximate height (title + body)
+    const ARROW_H   = 9;     // half the arrow square diagonal
+    const GAP       = 10;    // gap between tooltip bottom and button top
+
+    const rect = targetEl.getBoundingClientRect();
+
+    // Horizontal: centre over button, clamp to viewport
+    let left = rect.left + rect.width / 2 - TOOLTIP_W / 2;
+    left = Math.max(12, Math.min(left, window.innerWidth - TOOLTIP_W - 12));
+
+    // Vertical: above button
+    const top = rect.top - TOOLTIP_H - ARROW_H - GAP;
+
+    tipEl.style.position = 'fixed';
+    tipEl.style.width    = `${TOOLTIP_W}px`;
+    tipEl.style.left     = `${Math.round(left)}px`;
+    tipEl.style.top      = `${Math.round(top)}px`;
+    tipEl.style.zIndex   = '9500';
+
+    // Store for scroll/resize reposition
+    tipEl._targetEl  = targetEl;
+    tipEl._tooltipW  = TOOLTIP_W;
+    tipEl._tooltipH  = TOOLTIP_H;
+    tipEl._arrowH    = ARROW_H;
+    tipEl._gap       = GAP;
+  }
+
+  _repositionTooltip() {
+    if (!this._tooltip) return;
+    const { el } = this._tooltip;
+    if (!el._targetEl) return;
+
+    const rect   = el._targetEl.getBoundingClientRect();
+    const W      = el._tooltipW  || 280;
+    const H      = el._tooltipH  || 88;
+    const arrowH = el._arrowH    || 9;
+    const gap    = el._gap       || 10;
+
+    let left = rect.left + rect.width / 2 - W / 2;
+    left = Math.max(12, Math.min(left, window.innerWidth - W - 12));
+    const top = rect.top - H - arrowH - gap;
+
+    el.style.left = `${Math.round(left)}px`;
+    el.style.top  = `${Math.round(top)}px`;
   }
 
   // ══════════════════════════════════════════
@@ -489,12 +398,10 @@ class OnboardingController {
 
     document.body.appendChild(bar);
 
-    // Entrance animation — bar slides down from top
     requestAnimationFrame(() => {
       requestAnimationFrame(() => bar.classList.add('onb-bar-visible'));
     });
 
-    // Skip button
     document.getElementById('onb-skip-btn')?.addEventListener('click', () => {
       this.stop();
       showToast('Onboarding skipped — explore freely!', '⚡', 2500);
@@ -516,22 +423,17 @@ class OnboardingController {
   }
 
   // ══════════════════════════════════════════
-  //  BEACON HELPERS
-  //  Beacon = pulsing ring on a button
-  //  (no intrusive popup — just a subtle ring)
+  //  BEACON — pulsing ring appended to button
   // ══════════════════════════════════════════
 
   _addBeacon(btnId) {
     const btn = document.getElementById(btnId);
-    if (!btn) return;
-
-    // Don't double-add
-    if (btn.querySelector('.onb-beacon')) return;
-
+    if (!btn || btn.querySelector('.onb-beacon')) return;
+    // Allow the ring to overflow the button box
+    btn.style.overflow = 'visible';
     const beacon = document.createElement('span');
-    beacon.className  = 'onb-beacon';
+    beacon.className = 'onb-beacon';
     beacon.setAttribute('aria-hidden', 'true');
-    btn.style.position = 'relative';
     btn.appendChild(beacon);
     this._beacons.push({ btn, beacon });
   }
@@ -539,63 +441,9 @@ class OnboardingController {
   _removeBeacons() {
     this._beacons.forEach(({ btn, beacon }) => {
       beacon.remove();
+      btn.style.overflow = '';
     });
     this._beacons = [];
-  }
-
-  // ══════════════════════════════════════════
-  //  CALLOUT HELPERS
-  //  Callout = small tooltip-style card
-  //  attached to a target element
-  // ══════════════════════════════════════════
-
-  _showCallout(targetId, position, title, body, id) {
-    // Remove existing callout with same id
-    document.getElementById(id)?.remove();
-
-    const target = document.getElementById(targetId);
-    if (!target) return;
-
-    const callout = document.createElement('div');
-    callout.id        = id;
-    callout.className = `onb-callout onb-callout-${position}`;
-    callout.setAttribute('role', 'tooltip');
-    callout.innerHTML = `
-      <div class="onb-callout-arrow"></div>
-      <p class="onb-callout-title">${title}</p>
-      <p class="onb-callout-body">${body}</p>
-    `;
-
-    // Insert after target for natural DOM flow
-    target.insertAdjacentElement('afterend', callout);
-
-    // Position it relative to target
-    this._positionCallout(callout, target, position);
-
-    // Entrance: reuse fade-slide-up pattern
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => callout.classList.add('onb-callout-visible'));
-    });
-
-    this._callouts.push(callout);
-    return callout;
-  }
-
-  _positionCallout(callout, target, position) {
-    // Use CSS positioning rather than JS coords so it's responsive
-    // The callout is inserted after the target in DOM flow
-    callout.style.position = 'absolute';
-
-    // For above/below we rely on CSS classes — no JS coords needed
-    // For complex positioning scenarios, we'd measure, but CSS handles our cases
-  }
-
-  _removeCallouts() {
-    this._callouts.forEach(el => {
-      el.classList.add('onb-callout-exit');
-      setTimeout(() => el.remove(), 250);
-    });
-    this._callouts = [];
   }
 
   // ══════════════════════════════════════════
@@ -603,7 +451,6 @@ class OnboardingController {
   // ══════════════════════════════════════════
 
   _showCompletionBanner() {
-    // Remove existing
     document.getElementById('onb-complete-banner')?.remove();
 
     const banner = document.createElement('div');
@@ -627,7 +474,6 @@ class OnboardingController {
       document.getElementById('app')?.appendChild(banner);
     }
 
-    // Entrance — reuse insight-appear timing
     requestAnimationFrame(() => {
       requestAnimationFrame(() => banner.classList.add('onb-complete-visible'));
     });
@@ -638,25 +484,30 @@ class OnboardingController {
       this.stop();
     });
 
-    showToast('Onboarding complete — you\'re all set!', '✦', 3500);
+    showToast("Onboarding complete — you're all set!", '✦', 3500);
   }
 
   // ══════════════════════════════════════════
-  //  BUTTON PULSE HELPER
-  //  Mirrors Controls._pulseOnce() exactly
+  //  BUTTON PULSE — mirrors Controls._pulseOnce()
   // ══════════════════════════════════════════
 
   _pulseButton(btnId) {
     const btn = document.getElementById(btnId);
     if (!btn) return;
-
-    // Exact same technique as Controls._pulseOnce()
     btn.classList.remove('btn-glow');
-    void btn.offsetWidth; // force reflow
+    void btn.offsetWidth;
     btn.classList.add('btn-glow');
-
     const cleanup = () => btn.classList.remove('btn-glow');
     btn.addEventListener('animationend', cleanup, { once: true });
     setTimeout(cleanup, 900);
+  }
+
+  // ── Sync the active-mode button highlight ────────────────────
+  // Mirrors Controls._highlightMode() without importing Controls
+  _syncModeHighlight(activeId) {
+    ['btn-wall', 'btn-start', 'btn-end'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.classList.toggle('active', id === activeId);
+    });
   }
 }

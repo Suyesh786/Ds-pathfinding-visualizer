@@ -1,41 +1,28 @@
 /* ══════════════════════════════════════════════════════════════
    DS Academy – Guided Onboarding Styles  (css/onboarding.css)
+   v2 — refined per UX feedback
 
-   Philosophy: every rule here extends the existing design language.
-   - Uses --accent, --accent-dim, --bg-card, --border, --text-dim
-     from style.css — no new colour tokens introduced.
-   - Entrance/exit animations mirror existing patterns:
-     fadeSlideUp (fadeIn + translateY), btnGlow (for pulse ring),
-     insightFadeIn (for callout/banner appearance).
-   - Easing functions match the two house easings:
-     cubic-bezier(0.16, 1, 0.3, 1)  — smooth spring (landing)
-     cubic-bezier(0.34, 1.56, 0.64, 1) — bouncy spring (nodes/path)
-   - Typography uses --font-mono throughout (JetBrains Mono).
+   CHANGES FROM v1:
+   1. .onb-callout removed — replaced by .onb-tooltip which uses
+      position:fixed (anchored via JS getBoundingClientRect) so it
+      always appears ABOVE the target, never clips inside
+      overflow:hidden, and never blocks button interaction.
+   2. pointer-events:none on the entire tooltip element.
+   3. onbTooltipFloat keyframe — gentle 4px vertical bob, 3s loop,
+      ease-in-out. Applied when .onb-tooltip-visible is added.
+   4. Soft cyan glow on tooltip to attract eye without intruding.
+
+   Design language:
+   - All colours from style.css CSS variables — no new tokens.
+   - House easing: cubic-bezier(0.16,1,0.3,1) for entrances.
+   - House bouncy: cubic-bezier(0.34,1.56,0.64,1) for beacon ring.
+   - Monospace throughout: var(--font-mono) = JetBrains Mono.
 ══════════════════════════════════════════════════════════════ */
 
 /* ══════════════════════════════════════════
-   GHOST GRID CELLS
-   Applied by onboarding.js to existing grid cells.
-   Uses the already-registered .cell-visited and .cell-path
-   keyframes from animations.css — we just tint them lighter
-   so the ghost demo reads as "demo, not real data".
-══════════════════════════════════════════ */
-
-/* Ghost overlay — visited cells in demo are more translucent */
-.cell.cell-visited.onb-ghost {
-  /* Override the visited background with a subtler tint */
-  /* The cell-visited animation still fires, keeping the wave feel */
-  filter: opacity(0.55) saturate(0.8);
-}
-
-.cell.cell-path.onb-ghost {
-  filter: opacity(0.60) saturate(0.7);
-}
-
-/* ══════════════════════════════════════════
    PROGRESS BAR
-   Fixed to top of viewport. Slides down on entrance,
-   slides up on exit. Stays out of the way — 40px tall.
+   Fixed to top of viewport. Slides down on entrance.
+   Height: 40px — stays unobtrusive.
 ══════════════════════════════════════════ */
 
 .onb-progress-bar {
@@ -46,12 +33,12 @@
   z-index: 9000;
   background:
     linear-gradient(to right, rgba(0,229,255,0.04), rgba(124,58,237,0.04)),
-    rgba(13, 17, 26, 0.96);
+    rgba(13, 17, 26, 0.97);
   border-bottom: 1px solid var(--border);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 
-  /* Entrance: slide down */
+  /* Start off-screen above */
   transform: translateY(-100%);
   opacity: 0;
   transition:
@@ -67,6 +54,10 @@
 .onb-progress-bar.onb-bar-exit {
   transform: translateY(-100%);
   opacity: 0;
+  /* Slightly faster on exit so it's not distracting */
+  transition:
+    transform 0.28s ease,
+    opacity   0.20s ease;
 }
 
 .onb-progress-inner {
@@ -82,7 +73,7 @@
   font-size: 9px;
   letter-spacing: 0.22em;
   text-transform: uppercase;
-  color: rgba(0, 229, 255, 0.60);
+  color: rgba(0, 229, 255, 0.65);
   white-space: nowrap;
   flex-shrink: 0;
 }
@@ -100,8 +91,9 @@
   background: linear-gradient(to right, var(--accent), rgba(110, 231, 183, 0.9));
   border-radius: 2px;
   width: 0%;
+  /* Smooth progress fill — matches insightFadeIn timing */
   transition: width 0.55s cubic-bezier(0.16, 1, 0.3, 1);
-  box-shadow: 0 0 6px rgba(0, 229, 255, 0.35);
+  box-shadow: 0 0 8px rgba(0, 229, 255, 0.40);
 }
 
 .onb-progress-step {
@@ -134,185 +126,209 @@
 }
 
 /* ══════════════════════════════════════════
+   FLOATING TOOLTIP  (Improvement 1, 2, 3)
+   ─────────────────────────────────────────
+   Position: fixed — anchored via JS getBoundingClientRect().
+   Appears ABOVE target button, never blocks interaction.
+   pointer-events: none is set inline in JS but reinforced here.
+
+   Floating animation:
+   - translateY oscillates 0px ↔ -4px
+   - 3 second loop, ease-in-out
+   - Combined with a breathing box-shadow glow
+
+   Entrance:
+   - opacity 0→1 + translateY 8px→0 (matches insightFadeIn)
+   - Duration: 0.30s cubic-bezier(0.16,1,0.3,1)
+
+   Exit:
+   - opacity 1→0 + translateY 0→-5px
+   - Duration: 0.20s ease
+══════════════════════════════════════════ */
+
+.onb-tooltip {
+  /* Fixed anchoring — escapes overflow:hidden on builder-section */
+  position: fixed;
+  z-index: 9500;
+  width: 280px;
+
+  /* Never block pointer events — buttons stay fully clickable */
+  pointer-events: none !important;
+
+  /* Glass card — mirrors mode-selector-card aesthetic */
+  background:
+    linear-gradient(135deg, rgba(0,229,255,0.05) 0%, transparent 55%),
+    rgba(13, 17, 26, 0.97);
+  border: 1px solid rgba(0, 229, 255, 0.22);
+  border-radius: 4px;
+  padding: 12px 16px 14px;
+
+  /* Multi-layer shadow: edge ring + ambient glow + depth */
+  box-shadow:
+    0 0 0 1px rgba(0, 229, 255, 0.07),
+    0 0 20px 4px rgba(0, 229, 255, 0.09),
+    0 8px 28px rgba(0, 0, 0, 0.55);
+
+  /* Top-edge accent — matches mode-selector-card::after */
+  overflow: visible;
+
+  /* ── Entrance state (starts here, transitions to visible) ── */
+  opacity: 0;
+  transform: translateY(8px);
+  transition:
+    opacity   0.30s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.30s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Top-edge cyan gradient line */
+.onb-tooltip::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 8%; right: 8%;
+  height: 1px;
+  background: linear-gradient(
+    to right,
+    transparent,
+    rgba(0, 229, 255, 0.50),
+    rgba(110, 231, 183, 0.50),
+    transparent
+  );
+  pointer-events: none;
+  border-radius: 0 0 2px 2px;
+}
+
+/* ── Visible state: opacity + floating animation ── */
+.onb-tooltip.onb-tooltip-visible {
+  opacity: 1;
+  transform: translateY(0);
+  /* Float animation starts once visible */
+  animation: onbTooltipFloat 3s ease-in-out infinite;
+}
+
+/* ── Exit state ── */
+.onb-tooltip.onb-tooltip-exit {
+  opacity: 0;
+  transform: translateY(-5px);
+  animation: none; /* stop float immediately */
+  transition:
+    opacity   0.20s ease,
+    transform 0.20s ease;
+}
+
+/* ── Floating keyframe (Improvement 3) ──────────────────────────
+   Amplitude: 4px  Duration: 3s  Easing: ease-in-out loop
+   Subtle enough to attract the eye without feeling frantic.
+   The glow breathes in sync with the float for a premium feel.
+───────────────────────────────────────────────────────────── */
+@keyframes onbTooltipFloat {
+  0%, 100% {
+    transform: translateY(0px);
+    box-shadow:
+      0 0 0 1px rgba(0, 229, 255, 0.07),
+      0 0 20px 4px rgba(0, 229, 255, 0.09),
+      0 8px 28px rgba(0, 0, 0, 0.55);
+  }
+  50% {
+    transform: translateY(-4px);
+    box-shadow:
+      0 0 0 1px rgba(0, 229, 255, 0.12),
+      0 0 28px 6px rgba(0, 229, 255, 0.16),
+      0 12px 36px rgba(0, 0, 0, 0.50);
+  }
+}
+
+/* ── Tooltip arrow (points downward toward button) ── */
+.onb-tooltip-arrow {
+  position: absolute;
+  /* Bottom of tooltip, centred */
+  bottom: -5px;
+  left: 50%;
+  transform: translateX(-50%) rotate(45deg);
+  width: 9px;
+  height: 9px;
+  background: rgba(13, 17, 26, 0.97);
+  /* Only bottom-right borders visible (pointing down) */
+  border-right: 1px solid rgba(0, 229, 255, 0.22);
+  border-bottom: 1px solid rgba(0, 229, 255, 0.22);
+  pointer-events: none;
+}
+
+.onb-tooltip-title {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  color: rgba(241, 245, 249, 0.96);
+  margin: 0 0 5px;
+  line-height: 1.3;
+}
+
+.onb-tooltip-body {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.025em;
+  line-height: 1.65;
+  color: rgba(148, 163, 184, 0.82);
+  margin: 0;
+}
+
+/* ══════════════════════════════════════════
    BEACON
-   Pulsing ring that attaches to buttons.
-   Absolutely positioned inside the button (btn gets position:relative).
-   Two rings — inner solid, outer fading — for a "live indicator" feel.
-   Mirrors the statusPulse keyframe from animations.css.
+   Pulsing live-indicator ring appended inside the target button.
+   Two pseudo-elements: inner dot (scale pulse) + outer ring (expand-fade).
+   Mirrors the goalRipple pattern from animations.css.
 ══════════════════════════════════════════ */
 
 .onb-beacon {
   position: absolute;
-  top: -5px;
-  right: -5px;
-  width: 10px;
-  height: 10px;
+  top: -6px;
+  right: -6px;
+  width: 12px;
+  height: 12px;
   pointer-events: none;
   z-index: 10;
 }
 
-/* Inner dot */
+/* Inner solid dot */
 .onb-beacon::before {
   content: '';
   position: absolute;
   inset: 3px;
   border-radius: 50%;
   background: var(--accent);
-  animation: onbBeaconPulse 1.4s ease-in-out infinite;
+  animation: onbBeaconDot 1.6s ease-in-out infinite;
 }
 
-/* Outer ring — expands and fades, like goal-ripple */
+/* Outer expanding ring — mirrors goal-ripple */
 .onb-beacon::after {
   content: '';
   position: absolute;
   inset: 0;
   border-radius: 50%;
   border: 1.5px solid var(--accent);
-  animation: onbBeaconRing 1.4s ease-out infinite;
+  animation: onbBeaconRing 1.6s ease-out infinite;
 }
 
-@keyframes onbBeaconPulse {
-  0%, 100% { opacity: 1;   transform: scale(1); }
-  50%       { opacity: 0.6; transform: scale(1.2); }
+@keyframes onbBeaconDot {
+  0%, 100% { opacity: 1;   transform: scale(1);   }
+  50%       { opacity: 0.7; transform: scale(1.15); }
 }
 
 @keyframes onbBeaconRing {
-  0%   { transform: scale(1);   opacity: 0.8; }
-  100% { transform: scale(2.4); opacity: 0;   }
-}
-
-/* ══════════════════════════════════════════
-   CALLOUT
-   Tooltip-style card that appears below or above a target element.
-   Uses the same aesthetic as mode-selector-card:
-   - Dark glass background
-   - Cyan border
-   - Monospace font
-   - Corner accent pseudo-elements
-   Entrance mirrors insightFadeIn (translateY + opacity).
-══════════════════════════════════════════ */
-
-.onb-callout {
-  position: relative;
-  display: inline-flex;
-  flex-direction: column;
-  gap: 5px;
-  padding: 12px 16px;
-  margin-top: 8px;
-  margin-bottom: 4px;
-
-  background:
-    linear-gradient(135deg, rgba(0,229,255,0.04) 0%, transparent 60%),
-    rgba(13, 17, 26, 0.97);
-
-  border: 1px solid rgba(0, 229, 255, 0.20);
-  border-radius: 3px;
-  box-shadow:
-    0 0 0 1px rgba(0, 229, 255, 0.06),
-    0 0 24px 4px rgba(0, 229, 255, 0.05),
-    0 8px 32px rgba(0, 0, 0, 0.55);
-
-  max-width: 320px;
-  z-index: 100;
-
-  /* Corner accent — top-left */
-  overflow: visible;
-
-  /* Entrance */
-  opacity: 0;
-  transform: translateY(6px);
-  transition:
-    opacity   0.28s cubic-bezier(0.16, 1, 0.3, 1),
-    transform 0.32s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-/* Top-edge accent line — matches mode-selector-card::after */
-.onb-callout::before {
-  content: '';
-  position: absolute;
-  top: 0; left: 10%; right: 10%;
-  height: 1px;
-  background: linear-gradient(
-    to right,
-    transparent,
-    rgba(0, 229, 255, 0.45),
-    rgba(110, 231, 183, 0.45),
-    transparent
-  );
-  pointer-events: none;
-}
-
-.onb-callout-visible {
-  opacity: 1;
-  transform: translateY(0);
-}
-
-.onb-callout-exit {
-  opacity: 0;
-  transform: translateY(-4px);
-  transition:
-    opacity   0.20s ease,
-    transform 0.20s ease;
-}
-
-/* Positions */
-.onb-callout-above {
-  margin-top: 0;
-  margin-bottom: 8px;
-  transform: translateY(-6px);
-}
-.onb-callout-above.onb-callout-visible {
-  transform: translateY(0);
-}
-
-/* Arrow — a small triangle pointing toward the target */
-.onb-callout-arrow {
-  position: absolute;
-  width: 8px;
-  height: 8px;
-  background: rgba(13, 17, 26, 0.97);
-  border-left: 1px solid rgba(0, 229, 255, 0.20);
-  border-top: 1px solid rgba(0, 229, 255, 0.20);
-  top: -4px;
-  left: 18px;
-  transform: rotate(45deg);
-}
-
-.onb-callout-above .onb-callout-arrow {
-  top: auto;
-  bottom: -4px;
-  transform: rotate(225deg);
-}
-
-.onb-callout-title {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  color: rgba(241, 245, 249, 0.95);
-  margin: 0;
-}
-
-.onb-callout-body {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 0.03em;
-  line-height: 1.6;
-  color: rgba(148, 163, 184, 0.80);
-  margin: 0;
+  0%   { transform: scale(1);   opacity: 0.9; }
+  100% { transform: scale(2.6); opacity: 0;   }
 }
 
 /* ══════════════════════════════════════════
    COMPLETION BANNER
-   Appears below the comparison section.
-   Mirrors algo-card aesthetic — same border, background, shadow.
-   Uses insightFadeIn timing for entrance.
+   Appears below the comparison section after the simulation.
+   Mirrors algo-card: same bg-card, border, border-radius, shadow.
+   Entrance: translateY(10px)→0 + opacity, 0.40s smooth spring.
 ══════════════════════════════════════════ */
 
 .onb-complete-banner {
   margin: 16px 0 24px;
   padding: 0 20px;
-
   opacity: 0;
   transform: translateY(10px);
   transition:
@@ -328,6 +344,9 @@
 .onb-complete-banner.onb-complete-exit {
   opacity: 0;
   transform: translateY(-6px);
+  transition:
+    opacity   0.25s ease,
+    transform 0.25s ease;
 }
 
 .onb-complete-inner {
@@ -340,11 +359,11 @@
     linear-gradient(135deg, rgba(110,231,183,0.06) 0%, transparent 60%),
     var(--bg-card);
 
-  border: 1px solid rgba(110, 231, 183, 0.20);
+  border: 1px solid rgba(110, 231, 183, 0.22);
   border-radius: 3px;
   box-shadow:
     0 0 0 1px rgba(110, 231, 183, 0.06),
-    0 0 30px 4px rgba(110, 231, 183, 0.05),
+    0 0 28px 4px rgba(110, 231, 183, 0.05),
     0 8px 24px rgba(0, 0, 0, 0.40);
 }
 
@@ -352,7 +371,7 @@
   font-size: 20px;
   color: rgba(110, 231, 183, 0.90);
   flex-shrink: 0;
-  animation: onbStarSpin 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  animation: onbStarSpin 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
 }
 
 @keyframes onbStarSpin {
@@ -360,9 +379,7 @@
   to   { transform: scale(1) rotate(0deg);   opacity: 1; }
 }
 
-.onb-complete-text {
-  flex: 1;
-}
+.onb-complete-text { flex: 1; }
 
 .onb-complete-title {
   font-family: var(--font-mono);
@@ -393,11 +410,12 @@
   align-items: center;
   justify-content: center;
   font-family: var(--font-mono);
-  font-size: 14px;
+  font-size: 15px;
+  line-height: 1;
   color: var(--text-dim);
   cursor: pointer;
   flex-shrink: 0;
-  transition: border-color 0.2s ease, color 0.2s ease;
+  transition: border-color 0.18s ease, color 0.18s ease;
 }
 
 .onb-complete-dismiss:hover {
@@ -407,19 +425,27 @@
 
 /* ══════════════════════════════════════════
    RESPONSIVE
-   The progress bar text collapses on mobile.
 ══════════════════════════════════════════ */
 
 @media (max-width: 600px) {
-  .onb-progress-label {
-    display: none;
+  .onb-progress-label { display: none; }
+
+  .onb-tooltip {
+    /* On mobile use a narrower card, still centred */
+    width: 240px;
   }
-  .onb-callout {
-    max-width: 240px;
-    font-size: 9px;
-  }
+
   .onb-complete-inner {
     flex-wrap: wrap;
     gap: 10px;
   }
+}
+
+@media (max-width: 400px) {
+  .onb-tooltip {
+    width: 200px;
+    padding: 10px 12px 12px;
+  }
+  .onb-tooltip-title { font-size: 10px; }
+  .onb-tooltip-body  { font-size: 9px;  }
 }

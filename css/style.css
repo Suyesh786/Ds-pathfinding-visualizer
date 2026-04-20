@@ -255,7 +255,9 @@ body {
 .main-content {
   max-width: 1400px;
   margin: 0 auto;
-  padding: 40px 24px 80px;
+  /* Increased bottom padding from 80px→100px so sim controls
+     (Run button, status bar) have breathing room above viewport edge */
+  padding: 40px 24px 100px;
 }
 
 /* ── Section Headers ── */
@@ -300,7 +302,14 @@ body {
   margin-bottom: 32px;
   box-shadow: var(--shadow-card), var(--shadow-glow);
   position: relative;
-  overflow: hidden;
+  /* Changed from overflow:hidden → overflow:clip.
+     clip keeps the ::before accent line contained within the
+     border-radius without creating a scroll container, which means
+     position:fixed children (onboarding tooltips, toasts) are NOT
+     affected — they still escape to the viewport.
+     overflow:hidden would also work for fixed children, but clip
+     is semantically cleaner (no scroll context created). */
+  overflow: clip;
 }
 
 /* Subtle top accent line */
@@ -636,6 +645,9 @@ body {
   align-items: center;
   justify-content: space-between;
   padding-top: 20px;
+  /* Added padding-bottom so Run button isn't flush against the
+     card edge on tighter layouts */
+  padding-bottom: 4px;
   border-top: 1px solid var(--border);
 }
 
